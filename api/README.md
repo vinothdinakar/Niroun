@@ -46,7 +46,9 @@ After `npm run demo`, the demo accounts (staff and two customer companies) and t
 | `BOND_BOOTSTRAP_EMAIL` | none | Creates the first admin's one-time setup link when no admin exists |
 | `BOND_COOKIE_SECURE` | off | `1` when served over HTTPS |
 
-There are **two frontends**: the customer dashboard (`../dashboard`, owner roles) and a separate staff admin app (`../admin-app`, `admin`/`reviewer` only), on their own origins with their own session cookies — a bug in one can't reach the other's sessions. Each reaches this API through its own origin (a Next.js proxy forwards `/v1/*`), so the session cookie is never cross-site. The API therefore trusts both origins (`BOND_ALLOWED_ORIGINS`) and reads the visitor's address from the proxy (`BOND_TRUST_PROXY=1`). Regular invite/reset links are built client-side from whichever app the admin was using, so they always point at the right console; only the signup-verification link (customer-only) and the first-run bootstrap link (staff-only) are built server-side, from `BOND_PUBLIC_URL` and `BOND_STAFF_URL` respectively.
+There are **two frontends**: the customer dashboard (`../dashboard`, owner roles) and a separate staff admin app (`../admin-app`, `admin`/`reviewer` only). Each reaches this API through its own origin (a Next.js proxy forwards `/v1/*`), so the session cookie is never cross-site, and the API trusts both origins for cookie-authenticated writes (`BOND_ALLOWED_ORIGINS`) and reads the visitor's address from the proxy (`BOND_TRUST_PROXY=1`).
+
+Sign-in isolation between the two goes one step further than separate origins: cookies are scoped by **hostname**, not port, so two apps sharing a hostname in dev (`localhost:3300` / `localhost:3400`) would otherwise share one cookie jar. Each console's own server stamps every request it proxies with `X-Bond-App: customer` or `staff` (`@bond/console-core/lib/middleware.ts`) — trustworthy because that header is set server-side by that app's own code, never by the browser, so a script on one console's origin can't reach the other's server to forge it. `AuthGuard`/`AuthController` (`src/common/cookies.ts`) use it to keep two entirely separate session cookies, `bond_session` and `bond_staff_session`, so a bug in one console genuinely can't reach the other's session — in dev on `localhost` as much as in production on distinct hostnames. Regular invite/reset links are built client-side from whichever app the admin was using, so they always point at the right console; only the signup-verification link (customer-only) and the first-run bootstrap link (staff-only) are built server-side, from `BOND_PUBLIC_URL` and `BOND_STAFF_URL` respectively.
 
 ## Signing up (agent owners)
 
@@ -194,15 +196,24 @@ The pool reserves $0.25 per $1 of coverage in force and won't put more than 10% 
 
 ## API
 
-Nothing is public except `GET /v1/health`, the sign-in endpoints, and (only when signup is open) `POST /v1/signup`, `/v1/signup/resend`, `/v1/signup/verify`. Organizations are verified with `POST /v1/console/orgs/:id/verify` (admin). Reads accept either a console session or a signed agent request, and are scoped to what that caller may see: `GET /v1/agents`, `/v1/agents/:id`, `/v1/agents/:id/ledger`, `/v1/transactions`, `/v1/transactions/:id`, `/v1/disputes`, `/v1/pricing/preview?seller=&amountCents=&category=`. `GET /v1/stats` (pool health) is staff only.
+One API, one permission model, two frontends. Every endpoint checks the caller's role and permissions itself,
+regardless of which console (or neither) called it — the endpoint list below is grouped by who can actually
+use each one, but that's a reading aid, not a second layer of routing. See `BOND_ALLOWED_ORIGINS` / two session
+cookies above for how the two consoles' sign-ins stay apart.
 
-Agent requests (signed): `POST /v1/agents` (self-registration, optional `enrollmentCode`), `GET /v1/me`, `PUT /v1/me/policy` (unlinked agents only), `POST /v1/quotes`, `POST /v1/transactions`, `POST /v1/transactions/:id/events`, `POST /v1/transactions/:id/disputes`
+Nothing is public except `GET /v1/health`, the sign-in endpoints, and (only when signup is open) `POST /v1/signup`, `/v1/signup/resend`, `/v1/signup/verify` — customer-only; staff accounts are never self-service.
 
-Sign-in: `POST /v1/auth/login`, `/v1/auth/accept-invite`, `/v1/auth/logout`, `/v1/auth/change-password`, `GET /v1/auth/me`. Accounts with two-factor get `{ needs: "totp" | "enroll", challenge }` instead of a cookie, then finish with `POST /v1/auth/2fa/verify` (code or recovery code), or `/v1/auth/2fa/begin` + `/v1/auth/2fa/confirm` (first-time setup). `POST /v1/auth/2fa/recovery-codes` (signed in) replaces the recovery codes.
+**Agent requests** (signed, no cookie, used by the SDK — not either console): `POST /v1/agents` (self-registration, optional `enrollmentCode`), `GET /v1/me`, `PUT /v1/me/policy` (unlinked agents only), `POST /v1/quotes`, `POST /v1/transactions`, `POST /v1/transactions/:id/events`, `POST /v1/transactions/:id/disputes`.
 
-Console (session cookie, role-checked): `GET /v1/console/overview`, `/v1/console/orgs`, `/v1/console/users`, `/v1/console/audit`, `/v1/console/agents/:id`; `POST /v1/console/orgs`, `/v1/console/users` (invite), `/v1/console/users/:id/{disable,enable,reset}`, `/v1/console/enrollments`, `/v1/console/agents/:id/{status,verify}`, `/v1/console/disputes/:id/resolve`, `/v1/console/sweep`; `PUT /v1/console/agents/:id/policy`
+**Sign-in** (both consoles, same endpoints): `POST /v1/auth/login`, `/v1/auth/accept-invite`, `/v1/auth/logout`, `/v1/auth/change-password`, `GET /v1/auth/me`. Accounts with two-factor get `{ needs: "totp" | "enroll", challenge }` instead of a cookie, then finish with `POST /v1/auth/2fa/verify` (code or recovery code), or `/v1/auth/2fa/begin` + `/v1/auth/2fa/confirm` (first-time setup). `POST /v1/auth/2fa/recovery-codes` (signed in) replaces the recovery codes.
 
-Every signed request carries `X-Bond-Agent`, `-Timestamp`, `-Nonce`, `-Signature` (Ed25519 over method, path, timestamp, nonce, body hash). Requests older than 5 minutes or with a reused nonce are rejected.
+**Read endpoints** (both consoles; scoped to what that caller may see — a customer only their own company, staff everyone): `GET /v1/agents`, `/v1/agents/:id`, `/v1/agents/:id/ledger`, `/v1/transactions`, `/v1/transactions/:id`, `/v1/disputes`, `/v1/pricing/preview?seller=&amountCents=&category=`, `GET /v1/console/agents/:id`.
+
+**Shared console actions** (dashboard *and* admin-app — an owner on their own agents/team, staff on anyone's): `PUT /v1/console/agents/:id/policy` (`agents_manage`), `POST /v1/console/agents/:id/status` (`agents_suspend`), `POST /v1/console/enrollments` (`enroll`), `GET/POST /v1/console/users`, `/v1/console/users/:id/{disable,enable,reset}` (`team_manage`).
+
+**Staff-only console actions** (admin-app; the dashboard has no UI for these, and a customer session would get 403 regardless): `GET /v1/stats` (pool health, `stats`), `GET /v1/console/overview` (staff's version reads `/v1/stats` instead), `GET/POST /v1/console/orgs`, `POST /v1/console/orgs/:id/verify` (`orgs`), `GET /v1/console/audit` (`audit`), `POST /v1/console/agents/:id/verify` (`verify`), `POST /v1/console/disputes/:id/resolve` (`resolve`, admin + reviewer), `POST /v1/console/sweep` (`sweep`).
+
+Every signed agent request carries `X-Bond-Agent`, `-Timestamp`, `-Nonce`, `-Signature` (Ed25519 over method, path, timestamp, nonce, body hash). Requests older than 5 minutes or with a reused nonce are rejected. Every browser request from either console carries `X-Bond-App: customer` or `staff` (set by that console's own server, not by the browser — see above), which the auth guard uses to pick the matching session cookie.
 
 ## SDK
 
