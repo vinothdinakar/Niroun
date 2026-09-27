@@ -2,6 +2,7 @@
   "name": "bond",
   "private": true,
   "description": "Bond: trust, bonding and dispute resolution for AI agents. Convenience scripts; each app has its own package.json.",
+  "workspaces": ["dashboard", "admin-app", "packages/console-core"],
   "scripts": {
     "api:db": "npm --prefix api run db:start",
     "api:build": "npm --prefix api run build",

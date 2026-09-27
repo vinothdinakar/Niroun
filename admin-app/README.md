@@ -10,9 +10,12 @@ built from the same shared package, [`@bond/console-core`](../packages/console-c
 Staff can see *every* customer's deals, disputes and the pool's financials — a much bigger blast radius than
 an owner's own-company view. Splitting it out means:
 
-- **A different origin, a different session cookie.** This app and the customer dashboard never share a
-  cookie jar. A bug in the customer-facing app (XSS, a bad dependency, whatever) cannot reach a staff session,
-  because the browser never puts that cookie there.
+- **A different origin, a different session cookie.** A bug in the customer-facing app (XSS, a bad dependency,
+  whatever) cannot reach a staff session. This needs one more thing than just "different origin" to actually
+  hold: cookies are scoped by hostname, not port, so two apps sharing a hostname in dev (`localhost:3300` /
+  `localhost:3400`) would otherwise share one cookie jar. Each app's own server stamps every request it
+  proxies with `X-Bond-App: customer`/`staff` (`@bond/console-core/lib/middleware.ts`), which the API uses to
+  pick between two entirely separate session cookies — see `api/README.md` for the full mechanism.
 - **It can be put behind a VPN/IP-allowlist independently**, with no effect on the public dashboard, once
   that matters (not yet — this is still a prototype on simulated funds).
 - **A visible cue.** The header carries a "STAFF" badge (`badge="STAFF"` on the shared `AppShell`) so it's
@@ -24,10 +27,10 @@ which frontend calls it. This app is defense-in-depth on top of that, not a repl
 ## Run
 
 ```bash
+npm install   # from the repo root — dashboard, admin-app and packages/console-core are one npm workspace
 cd admin-app
-npm install
 npm run dev        # http://localhost:3400 (hot reload)
-npm test           # unit tests (vitest; currently none of its own — see packages/console-core)
+npm test           # component tests for this app's own pages (login, layout nav, Organizations, Audit) — vitest + RTL
 npm run typecheck
 npm run build && npm start   # production build, on port 3400
 ```

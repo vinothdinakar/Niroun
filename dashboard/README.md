@@ -7,10 +7,10 @@ Bond staff (`admin`, `reviewer`) sign in to a **separate app**, [`../admin-app`]
 ## Run
 
 ```bash
+npm install   # from the repo root — dashboard, admin-app and packages/console-core are one npm workspace
 cd dashboard
-npm install
 npm run dev        # http://localhost:3300 (hot reload)
-npm test           # unit tests (vitest; currently none of its own — see packages/console-core)
+npm test           # component tests for this app's own pages (login, signup, verify, layout nav) — vitest + RTL
 npm run typecheck
 npm run build && npm start   # production build, on port 3300
 ```

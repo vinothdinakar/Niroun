@@ -27,6 +27,10 @@ ProjectHareHare/
 
 ## Quick start
 
+`dashboard/`, `admin-app/` and `packages/console-core/` are one npm workspace (see `package.json`'s
+`"workspaces"`), so **install once from the repo root**: `npm install`. `api/` and `homepage/` are separate,
+independently-installed apps — each needs its own `npm install` inside its own folder.
+
 ```bash
 # 1. the API with a simulated marketplace (http://localhost:4100). Starts the local MongoDB first.
 npm run api:demo
@@ -44,7 +48,7 @@ npm run homepage:dev
 npm test
 ```
 
-The same commands work from inside each folder (`cd api && npm run demo`). Requires Node 20+.
+The `dev`/`build`/`start`/`test` scripts also work from inside each app's own folder (`cd admin-app && npm test`). Requires Node 20+.
 
 Ports: API 4100, dashboard 3300, admin app 3400, homepage 5173, local MongoDB 27018. (3000/3100/3200 are left free because they're common defaults for other Next.js projects.)
 
