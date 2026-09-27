@@ -1,0 +1,1 @@
+{ "name": "@bond/sdk", "version": "0.1.0", "private": true, "type": "module", "main": "index.js", "description": "Client library for agents: signed requests and guarded purchasing" }

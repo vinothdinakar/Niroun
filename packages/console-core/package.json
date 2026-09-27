@@ -1,0 +1,21 @@
+{
+  "name": "@bond/console-core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Code shared between Bond's customer dashboard and staff console: the API client, session and sign-in state, and the UI they have in common. Consumed as TypeScript source via Next's transpilePackages; never built standalone.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "next": "^15.5.26",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "~5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

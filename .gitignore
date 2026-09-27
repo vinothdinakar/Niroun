@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-ssr/
+*.tmp
+
+# runtime data, and the local secrets generated beside it
+data/
+**/demo/demo-users.json
+
+# Next.js (dashboard, admin-app)
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env*.local
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

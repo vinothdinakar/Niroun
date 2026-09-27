@@ -1,0 +1,38 @@
+{
+  "name": "@bond/api",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Bond API: trust, bonding and dispute resolution for AI agents (NestJS)",
+  "main": "dist/main.js",
+  "scripts": {
+    "db:start": "node scripts/db.mjs start",
+    "db:stop": "node scripts/db.mjs stop",
+    "db:status": "node scripts/db.mjs status",
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "npm run build && node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "start:dev": "node --watch dist/main.js",
+    "demo": "npm run build && node demo/simulate.mjs",
+    "demo:fast": "npm run build && node demo/simulate.mjs --fast",
+    "demo:code": "node demo/totp-code.mjs",
+    "test": "npm run db:start && npm run build && node --test test/"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.2.6",
+    "@nestjs/core": "^11.2.6",
+    "@nestjs/platform-express": "^11.2.6",
+    "mongodb": "6.21.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.0",
+    "typescript": "~5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

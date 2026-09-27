@@ -1,0 +1,24 @@
+# Bond's development MongoDB as a single-node replica set (transactions require a replica set).
+# Same thing `npm run db:start` gives you without Docker.
+#
+#   docker compose up -d
+#   BOND_MONGO_URL="mongodb://127.0.0.1:27018/?replicaSet=bond0&directConnection=true" npm start
+#
+# DEV ONLY: no authentication, published on localhost. Use Atlas or a secured cluster in production.
+services:
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "bond0", "--bind_ip_all", "--port", "27018"]
+    ports:
+      - "127.0.0.1:27018:27018"
+    volumes:
+      - bond-mongo:/data/db
+    healthcheck:
+      test: >
+        mongosh --port 27018 --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id:'bond0',members:[{_id:0,host:'127.0.0.1:27018'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+volumes:
+  bond-mongo:

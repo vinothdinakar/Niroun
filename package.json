@@ -1,0 +1,26 @@
+{
+  "name": "bond",
+  "private": true,
+  "description": "Bond: trust, bonding and dispute resolution for AI agents. Convenience scripts; each app has its own package.json.",
+  "scripts": {
+    "api:db": "npm --prefix api run db:start",
+    "api:build": "npm --prefix api run build",
+    "api:start": "npm --prefix api start",
+    "api:demo": "npm --prefix api run demo",
+    "api:demo:fast": "npm --prefix api run demo:fast",
+    "api:test": "npm --prefix api test",
+    "console-core:test": "npm --prefix packages/console-core test",
+    "dashboard:dev": "npm --prefix dashboard run dev",
+    "dashboard:build": "npm --prefix dashboard run build",
+    "dashboard:start": "npm --prefix dashboard run start",
+    "dashboard:test": "npm --prefix dashboard test",
+    "admin:dev": "npm --prefix admin-app run dev",
+    "admin:build": "npm --prefix admin-app run build",
+    "admin:start": "npm --prefix admin-app run start",
+    "admin:test": "npm --prefix admin-app test",
+    "homepage:dev": "npm --prefix homepage run dev",
+    "homepage:build": "npm --prefix homepage run build",
+    "homepage:test": "npm --prefix homepage test",
+    "test": "npm run api:test && npm run console-core:test && npm run dashboard:test && npm run admin:test && npm run homepage:test"
+  }
+}
