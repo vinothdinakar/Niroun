@@ -13,14 +13,14 @@ export const OWNER_ROLES: Role[] = ['owner_admin', 'owner_viewer'];
 
 export type Permission =
   | 'stats' | 'orgs' | 'audit' | 'verify' | 'sweep' | 'resolve'
-  | 'agents_manage' | 'agents_suspend' | 'team_manage' | 'enroll';
+  | 'agents_manage' | 'agents_suspend' | 'team_manage' | 'enroll' | 'request_verification';
 
 // Reading is scoped by role (staff: everything; owners: their own company) and is not a permission.
 // These are the actions. For non-staff, every action is additionally limited to their own org.
 const PERMS: Record<Role, Set<Permission>> = {
   admin: new Set<Permission>(['stats', 'orgs', 'audit', 'verify', 'sweep', 'resolve', 'agents_manage', 'agents_suspend', 'team_manage', 'enroll']),
   reviewer: new Set<Permission>(['stats', 'resolve', 'agents_suspend']),
-  owner_admin: new Set<Permission>(['agents_manage', 'agents_suspend', 'team_manage', 'enroll']),
+  owner_admin: new Set<Permission>(['agents_manage', 'agents_suspend', 'team_manage', 'enroll', 'request_verification']),
   owner_viewer: new Set<Permission>(),
 };
 

@@ -23,14 +23,16 @@ describe('OrganizationsPage', () => {
     const fetchMock = mockApi({
       '/v1/auth/me': adminMe,
       '/v1/console/orgs': (_url: string, init?: RequestInit) =>
-        init?.method === 'POST' ? {} : { orgs: [{ id: 'org_1', name: 'Acme Corp', verification: 0, createdVia: 'signup', createdAt: 0 }] },
+        init?.method === 'POST' ? {} : { orgs: [{ id: 'org_1', name: 'Acme Corp', accountType: 'business', verification: 0, createdVia: 'signup', createdAt: 0 }] },
       '/v1/console/users': { users: [] },
       '/v1/agents': { agents: [] },
+      '/v1/console/verification-requests': { requests: [] },
       '/v1/console/orgs/org_1/verify': {},
     });
     const user = userEvent.setup();
     renderWithProviders(<OrganizationsPage />);
     expect(await screen.findByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('Fully verified (KYB)')).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Verification for Acme Corp'), '1');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/v1/console/orgs/org_1/verify', expect.objectContaining({ method: 'POST' })));
@@ -38,5 +40,58 @@ describe('OrganizationsPage', () => {
     await user.type(screen.getByLabelText('Name'), 'New Co');
     await user.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/v1/console/orgs', expect.objectContaining({ method: 'POST' })));
+    const createCall = fetchMock.mock.calls.findLast(([url, init]) => url === '/v1/console/orgs' && init?.method === 'POST');
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ name: 'New Co', accountType: 'business' });
+  });
+
+  it('shows individual-flavoured verification labels for a personal account, and lets an admin correct the type', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': adminMe,
+      '/v1/console/orgs': { orgs: [{ id: 'org_2', name: 'Jordan Lee', accountType: 'individual', verification: 0, createdVia: 'signup', createdAt: 0 }] },
+      '/v1/console/users': { users: [] },
+      '/v1/agents': { agents: [] },
+      '/v1/console/verification-requests': { requests: [] },
+      '/v1/console/orgs/org_2/account-type': {},
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<OrganizationsPage />);
+    expect(await screen.findByText('Jordan Lee')).toBeInTheDocument();
+    expect(screen.getByText('Fully verified (KYC)')).toBeInTheDocument();
+    expect(screen.queryByText('Fully verified (KYB)')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Type for Jordan Lee'), 'business');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/v1/console/orgs/org_2/account-type', expect.objectContaining({ method: 'POST' })));
+    const retypeCall = fetchMock.mock.calls.findLast(([url]) => url === '/v1/console/orgs/org_2/account-type');
+    expect(JSON.parse(String(retypeCall?.[1]?.body))).toMatchObject({ accountType: 'business' });
+  });
+
+  it('shows a pending verification request with its submitted fields, and lets an admin approve or reject it', async () => {
+    const pendingRequest = {
+      id: 'ver_1', orgId: 'org_1', accountType: 'business' as const, level: 1 as const, status: 'pending' as const,
+      fields: { legalName: 'Acme Corporation LLC', registrationNumber: 'EIN-1', address: '1 Main St' },
+      submittedBy: 'usr_owner', submittedAt: 0,
+    };
+    const fetchMock = mockApi({
+      '/v1/auth/me': adminMe,
+      '/v1/console/orgs': { orgs: [{ id: 'org_1', name: 'Acme Corp', accountType: 'business', verification: 0, createdVia: 'signup', createdAt: 0 }] },
+      '/v1/console/users': { users: [] },
+      '/v1/agents': { agents: [] },
+      '/v1/console/verification-requests': { requests: [pendingRequest] },
+      '/v1/console/verification-requests/ver_1/decide': {},
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<OrganizationsPage />);
+    expect(await screen.findByText('Acme Corp — applying for Owner verified')).toBeInTheDocument();
+    expect(screen.getByText('Acme Corporation LLC')).toBeInTheDocument();
+    expect(screen.getByText('EIN-1')).toBeInTheDocument();
+
+    // rejecting without a reason is refused client-side, before any request is sent
+    await user.click(screen.getByRole('button', { name: 'Reject' }));
+    expect(fetchMock).not.toHaveBeenCalledWith('/v1/console/verification-requests/ver_1/decide', expect.anything());
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/v1/console/verification-requests/ver_1/decide', expect.objectContaining({ method: 'POST' })));
+    const body = JSON.parse(String(fetchMock.mock.calls.findLast(([url]) => url === '/v1/console/verification-requests/ver_1/decide')?.[1]?.body));
+    expect(body).toMatchObject({ decision: 'approve' });
   });
 });

@@ -10,8 +10,9 @@ import { DisputesService } from '../deals/disputes.service';
 import { EnrollmentsService } from '../identity/enrollments.service';
 import { OrgsService } from '../identity/orgs.service';
 import { UsersService } from '../identity/users.service';
+import { VerificationRequestsService } from '../identity/verification-requests.service';
 import { isStaff } from '../domain/roles';
-import { User } from '../storage/db.types';
+import { Org, User } from '../storage/db.types';
 
 type Json = Record<string, unknown>;
 
@@ -30,12 +31,20 @@ export class ConsoleController {
     private readonly orgs: OrgsService,
     private readonly users: UsersService,
     private readonly enrollments: EnrollmentsService,
+    private readonly verificationRequests: VerificationRequestsService,
   ) {}
 
   /** Owner-side actions on an agent: staff anywhere, customers only on agents their organisation owns. */
   private async manageable(user: User, agentId: string): Promise<void> {
     const agent = await this.agents.orThrow(agentId);
     if (!isStaff(user) && agent.orgId !== user.orgId) throw notFound('AGENT_NOT_FOUND', `Unknown agent ${agentId}`);
+  }
+
+  /** Sets the org's verification level and cascades it to every agent it currently owns. */
+  private async applyVerification(user: User, orgId: string, level: unknown): Promise<Org> {
+    const org = await this.orgs.setVerification(user, orgId, level);
+    for (const a of await this.agents.ofOrg(org.id)) await this.agents.setVerification(a.id, org.verification);
+    return org;
   }
 
   // ---- organisations ----
@@ -48,17 +57,50 @@ export class ConsoleController {
   @RequirePermission('orgs')
   @HttpCode(201)
   createOrg(@CurrentUser() user: User, @Body() body: Json) {
-    return this.orgs.create(body.name, user);
+    const accountType = body.accountType === 'individual' ? 'individual' : 'business';
+    return this.orgs.create(body.name, user, accountType);
   }
 
   /** Verifying a business also verifies every agent it owns (and later ones inherit it at enrolment). */
   @Post('orgs/:id/verify')
   @HttpCode(200)
   verifyOrg(@CurrentUser() user: User, @Param('id') id: string, @Body() body: Json) {
+    return this.mongo.transaction(() => this.applyVerification(user, id, body.level));
+  }
+
+  /** Corrects an org's type (e.g. signup guessed wrong, or a staff-created one needs relabelling). Doesn't touch verification. */
+  @Post('orgs/:id/account-type')
+  @RequirePermission('orgs')
+  @HttpCode(200)
+  setOrgAccountType(@CurrentUser() user: User, @Param('id') id: string, @Body() body: Json) {
+    return this.orgs.setAccountType(user, id, body.accountType);
+  }
+
+  // ---- verification (KYB/KYC) requests ----
+  /** An org's own admin applies to move up a level, describing itself with the fields that level (Score/premium). */
+  @Post('verification-requests')
+  @RequirePermission('request_verification')
+  @HttpCode(201)
+  submitVerificationRequest(@CurrentUser() user: User, @Body() body: Json) {
+    return this.verificationRequests.submit(user, body.level, (body.fields as Json) ?? {});
+  }
+
+  /** Staff see every request (their review queue); an org sees only its own history. */
+  @Get('verification-requests')
+  listVerificationRequests(@CallerScope() scope: Scope) {
+    return this.verificationRequests.list(scope).then((requests) => ({ requests }));
+  }
+
+  /** Approving also sets the org's verification level (and cascades to its agents); rejecting just records why. */
+  @Post('verification-requests/:id/decide')
+  @RequirePermission('verify')
+  @HttpCode(200)
+  decideVerificationRequest(@CurrentUser() user: User, @Param('id') id: string, @Body() body: Json) {
     return this.mongo.transaction(async () => {
-      const org = await this.orgs.setVerification(user, id, body.level);
-      for (const a of await this.agents.ofOrg(org.id)) await this.agents.setVerification(a.id, org.verification);
-      return org;
+      const approve = body.decision === 'approve';
+      const request = await this.verificationRequests.decide(user, id, approve, body.reason);
+      const org = approve ? await this.applyVerification(user, request.orgId, request.level) : undefined;
+      return { request, org };
     });
   }
 
