@@ -7,6 +7,7 @@ const LINKS = [
   ['/pricing', 'Pricing'],
   ['/security', 'Security'],
   ['/developers', 'Developers'],
+  ['/docs', 'Docs'],
 ] as const;
 
 export function Logo() {
@@ -81,6 +82,8 @@ export function Layout() {
           <div>
             <h4>Build</h4>
             <Link to="/developers">Developers</Link>
+            <Link to="/docs">API reference</Link>
+            <a href="/openapi.json">OpenAPI spec</a>
             <Link to="/waitlist">Join the waitlist</Link>
           </div>
         </div>

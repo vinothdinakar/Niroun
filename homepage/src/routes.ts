@@ -39,6 +39,12 @@ export const ROUTES: RouteMeta[] = [
       'Add guarded purchasing to an agent in a few lines: signed identity, mandate checks, counterparty risk, and bonding through one SDK call.',
   },
   {
+    path: '/docs',
+    title: 'API reference | Bond',
+    description:
+      'The Bond agent API: request signing, quotes, bonded deals, disputes and error codes. Includes a downloadable OpenAPI 3.1 spec.',
+  },
+  {
     path: '/waitlist',
     title: 'Join the waitlist | Bond',
     description: 'Bond is in private preview. Join the waitlist to get early access.',

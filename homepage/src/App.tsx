@@ -5,6 +5,7 @@ import { HowItWorks } from './pages/HowItWorks';
 import { Pricing } from './pages/Pricing';
 import { Security } from './pages/Security';
 import { Developers } from './pages/Developers';
+import { Docs } from './pages/Docs';
 import { Waitlist } from './pages/Waitlist';
 import { NotFound } from './pages/NotFound';
 
@@ -17,6 +18,7 @@ export function App() {
         <Route path="pricing" element={<Pricing />} />
         <Route path="security" element={<Security />} />
         <Route path="developers" element={<Developers />} />
+        <Route path="docs" element={<Docs />} />
         <Route path="waitlist" element={<Waitlist />} />
         <Route path="*" element={<NotFound />} />
       </Route>
