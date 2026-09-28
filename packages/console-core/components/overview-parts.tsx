@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, errorMessage } from '../lib/api';
-import { CATEGORIES, VERDICT, VERIFY, usd, usd0, when } from '../lib/format';
+import { CATEGORIES, VERDICT, orgVerifyLabel, usd, usd0, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Agent, Dispute, Org, OwnerOverview, PoolStats, Tx } from '../lib/types';
@@ -59,7 +59,9 @@ export function Onboarding({ overview, org }: { overview: OwnerOverview; org: Or
           {overview.agents === 0 && has('enroll') && <> <Link className="btn primary sm" href="/connect">Generate an enrollment code</Link></>}
         </li>
         <li className={org.verification ? 'done' : ''}>
-          {org.verification ? 'Your organization is verified' : 'Get your organization verified. Bond staff verify businesses (this is not automatic yet). Verified organizations get lower bond premiums on their agents.'}
+          {org.verification
+            ? 'Your organization is verified'
+            : <>Get your organization verified — it lowers the premium your agents&apos; counterparties pay.{has('request_verification') && <> <Link className="btn primary sm" href="/verification">Apply for verification</Link></>}</>}
         </li>
         <li>Invite your team{has('team_manage') && <> <Link className="btn ghost sm" href="/team">Open Team</Link></>}</li>
       </ol>
@@ -85,7 +87,7 @@ export function AgentsTable({ agents }: { agents: Agent[] }) {
             <td><Tier tier={a.tier} /></td>
             <td>{a.score}<ScoreBar score={a.score} /></td>
             <td className="num">{(a.faultRate * 100).toFixed(1)}%</td>
-            <td className="muted">{a.status === 'suspended' && <><span className="pill red">Suspended</span>{' '}</>}{a.verification > 0 && <><span className="ver">✓</span>{' '}</>}{VERIFY[a.verification]}</td>
+            <td className="muted">{a.status === 'suspended' && <><span className="pill red">Suspended</span>{' '}</>}{a.verification > 0 && <><span className="ver">✓</span>{' '}</>}{orgVerifyLabel(a.verification, a.accountType)}</td>
           </tr>
         ))}
       </tbody>

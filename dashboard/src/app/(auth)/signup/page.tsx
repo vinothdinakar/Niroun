@@ -15,6 +15,7 @@ export default function SignupPage() {
   const router = useRouter();
   const flow = useFlow();
   const health = useHealth();
+  const [accountType, setAccountType] = useState<'individual' | 'business'>('business');
   const [f, setF] = useState({ name: '', email: '', company: '', password: '', password2: '', website: '', acceptTerms: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,8 +38,9 @@ export default function SignupPage() {
     if (f.password !== f.password2) { setError('The two passwords do not match.'); return; }
     setBusy(true);
     try {
+      const company = accountType === 'individual' ? f.name : f.company;
       await api('POST', '/v1/signup', {
-        name: f.name, email: f.email, company: f.company, password: f.password, acceptTerms: f.acceptTerms, website: f.website,
+        name: f.name, email: f.email, company, password: f.password, acceptTerms: f.acceptTerms, website: f.website, accountType,
       });
       flow.setSignupEmail(f.email.trim());
       router.push('/signup/check-email');
@@ -52,13 +54,21 @@ export default function SignupPage() {
   return (
     <form className="signup-form" onSubmit={submit}>
       <h2>Create your account</h2>
-      <p className="muted">Register your company to connect and monitor your AI agents.</p>
+      <p className="muted">{accountType === 'business' ? 'Register your company to connect and monitor your AI agents.' : 'Register to connect and monitor your AI agents.'}</p>
+      <div className="account-type-toggle" role="radiogroup" aria-label="Account type">
+        <button type="button" role="radio" aria-checked={accountType === 'individual'} className={accountType === 'individual' ? 'active' : ''} onClick={() => setAccountType('individual')}>Individual</button>
+        <button type="button" role="radio" aria-checked={accountType === 'business'} className={accountType === 'business' ? 'active' : ''} onClick={() => setAccountType('business')}>Business</button>
+      </div>
       <div className="two">
-        <div><label htmlFor="su-name">Your name</label><input id="su-name" autoComplete="name" maxLength={80} required autoFocus value={f.name} onChange={set('name')} /></div>
+        <div><label htmlFor="su-name">Your name</label><input id="su-name" autoComplete="name" minLength={2} maxLength={80} required autoFocus value={f.name} onChange={set('name')} /></div>
         <div><label htmlFor="su-email">Work email</label><input id="su-email" type="email" autoComplete="email" required value={f.email} onChange={set('email')} /></div>
       </div>
-      <label htmlFor="su-company">Company name</label>
-      <input id="su-company" autoComplete="organization" minLength={2} maxLength={80} required value={f.company} onChange={set('company')} />
+      {accountType === 'business' && (
+        <>
+          <label htmlFor="su-company">Company name</label>
+          <input id="su-company" autoComplete="organization" minLength={2} maxLength={80} required value={f.company} onChange={set('company')} />
+        </>
+      )}
       <div className="two">
         <div><label htmlFor="su-pw">Password (12+ characters)</label><PasswordInput id="su-pw" autoComplete="new-password" minLength={12} required value={f.password} onChange={set('password')} /></div>
         <div><label htmlFor="su-pw2">Confirm password</label><PasswordInput id="su-pw2" autoComplete="new-password" minLength={12} required value={f.password2} onChange={set('password2')} /></div>
@@ -69,7 +79,10 @@ export default function SignupPage() {
         <summary>Preview terms (draft)</summary>
         <p>Bond is a private preview. It runs on simulated funds: no real money moves and no real insurance or coverage is in force. Scores, prices and outcomes are for evaluation only and carry no warranty. Your organization starts unverified; Bond staff verify businesses separately. These terms are placeholders and must be replaced by counsel-approved terms before launch.</p>
       </details>
-      <label className="check"><input type="checkbox" checked={f.acceptTerms} onChange={set('acceptTerms')} /> I&apos;m authorised to register this company and I accept the preview terms.</label>
+      <label className="check">
+        <input type="checkbox" checked={f.acceptTerms} onChange={set('acceptTerms')} />
+        {accountType === 'business' ? " I'm authorised to register this company and I accept the preview terms." : ' I accept the preview terms.'}
+      </label>
       <p className="form-error" role="alert">{error}</p>
       <button className="btn primary" type="submit" disabled={busy}>Create account</button>
       <p className="small"><Link href="/login">Already have an account? Sign in</Link></p>

@@ -37,6 +37,8 @@ export interface Agent {
   name: string;
   owner: string;
   orgId: string | null;
+  /** The owning org's type; older payloads may omit it (read as business). */
+  accountType?: 'individual' | 'business';
   tier: string;
   score: number;
   faultRate: number;
@@ -115,9 +117,24 @@ export interface Dispute {
 export interface Org {
   id: string;
   name: string;
+  accountType: 'individual' | 'business';
   verification?: number;
   createdVia?: string;
   createdAt: number;
+}
+
+export interface VerificationRequest {
+  id: string;
+  orgId: string;
+  accountType: 'individual' | 'business';
+  level: 1 | 2;
+  status: 'pending' | 'approved' | 'rejected';
+  fields: Record<string, string>;
+  submittedBy: string;
+  submittedAt: number;
+  decidedBy?: string;
+  decidedAt?: number;
+  rejectionReason?: string;
 }
 
 export interface PersonRow extends User {}

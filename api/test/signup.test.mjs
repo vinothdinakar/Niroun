@@ -172,6 +172,58 @@ test('abuse: signups are rate limited per address and per source, and a honeypot
   assert.equal(w.app.mailer.outbox.length, sent, 'and nothing was sent');
 });
 
+test('individual signup: a clashing personal org name is disambiguated instead of refused', async () => {
+  fresh();
+  const sameName = `Jordan Individual ${++n}`;
+  const a = valid({ company: sameName, accountType: 'individual' });
+  const b = valid({ company: sameName, accountType: 'individual' });
+
+  const ra = await post('/v1/signup', a);
+  assert.equal(ra.status, 202);
+  const rb = await post('/v1/signup', b);
+  assert.equal(rb.status, 202, 'the second individual is never told the name is taken');
+
+  const va = await post('/v1/signup/verify', { token: tokenOf(mailTo(a.email).at(-1)) });
+  assert.equal(va.status, 200);
+  assert.equal(va.body.orgName, sameName, 'the first one keeps the plain name');
+
+  const vb = await post('/v1/signup/verify', { token: tokenOf(mailTo(b.email).at(-1)) });
+  assert.equal(vb.status, 200);
+  assert.notEqual(vb.body.orgName, sameName, 'the second one is silently disambiguated');
+  assert.ok(vb.body.orgName.startsWith(sameName), 'still recognisably the same name');
+
+  const s = await w.signIn(b.email, b.password);
+  assert.equal(s.user.orgName, vb.body.orgName);
+  const orgA = (await w.app.accounts.listOrgs()).find((o) => o.name === sameName);
+  const orgB = (await w.app.accounts.listOrgs()).find((o) => o.id === s.user.orgId);
+  assert.equal(orgA.accountType, 'individual');
+  assert.equal(orgB.accountType, 'individual');
+});
+
+test('a plain business signup gets accountType "business" on its org', async () => {
+  fresh();
+  const form = valid();
+  await post('/v1/signup/verify', { token: await signUpAndGetToken(form) });
+  const org = (await w.app.accounts.listOrgs()).find((o) => o.name === form.company);
+  assert.equal(org.accountType, 'business');
+});
+
+test('staff can create an org of either type, and correct it afterwards', async () => {
+  fresh();
+  const created = await w.admin('POST', '/v1/console/orgs', { name: `Correctable ${++n}`, accountType: 'individual' });
+  assert.equal(created.accountType, 'individual');
+
+  const defaulted = await w.admin('POST', '/v1/console/orgs', { name: `Defaulted ${n}` });
+  assert.equal(defaulted.accountType, 'business', 'staff-created orgs default to business when unspecified');
+
+  const corrected = await w.admin('POST', `/v1/console/orgs/${created.id}/account-type`, { accountType: 'business' });
+  assert.equal(corrected.accountType, 'business');
+  assert.equal(corrected.verification, 0, 'changing the type never touches verification');
+
+  const bad = await w.admin('POST', `/v1/console/orgs/${created.id}/account-type`, { accountType: 'nonsense' });
+  assert.equal(bad.error?.code, 'INVALID_ACCOUNT_TYPE');
+});
+
 test('two people racing for one company name: the first to verify wins, the second is told clearly', async () => {
   fresh();
   const company = `Race ${++n} Holdings`;

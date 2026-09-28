@@ -17,6 +17,33 @@ export const scoreColor = (s: number): string =>
 
 export const VERIFY = ['Unverified', 'Owner verified', 'Fully verified (KYB)'];
 
+/** Same 3 levels and the same numeric effect (Bond Score bonus, premium discount) as VERIFY — only the label
+ * differs, since "Fully verified (KYB)" (Know Your Business) doesn't read right for a personal account. */
+export const ORG_VERIFY_LABELS: Record<'individual' | 'business', string[]> = {
+  business: VERIFY,
+  individual: ['Unverified', 'Verified', 'Fully verified (KYC)'],
+};
+export const orgVerifyLabel = (level: number, accountType: 'individual' | 'business' | undefined): string =>
+  ORG_VERIFY_LABELS[accountType === 'individual' ? 'individual' : 'business'][level] ?? VERIFY[level];
+
+/** What a business vs. an individual has to say about itself to apply for a level — self-attested, no
+ * document upload (see VerificationRequestsService on the API for why). Order is display order. */
+export interface VerifyField { key: string; label: string; placeholder?: string; optional?: boolean }
+export const VERIFY_FIELD_SPEC: Record<'individual' | 'business', VerifyField[]> = {
+  business: [
+    { key: 'legalName', label: 'Legal business name', placeholder: 'Acme Corporation LLC' },
+    { key: 'registrationNumber', label: 'Registration number', placeholder: 'EIN, company number, etc.' },
+    { key: 'address', label: 'Business address', placeholder: '1 Main St, Springfield' },
+    { key: 'website', label: 'Website', placeholder: 'https://…', optional: true },
+  ],
+  individual: [
+    { key: 'legalName', label: 'Legal full name', placeholder: 'Jordan Lee' },
+    { key: 'idType', label: 'ID type', placeholder: 'Passport, driver\'s license, national ID…' },
+    { key: 'idNumber', label: 'ID number', placeholder: '' },
+    { key: 'address', label: 'Address', placeholder: '2 Elm St, Springfield' },
+  ],
+};
+
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Bond admin', reviewer: 'Bond reviewer', owner_admin: 'Owner admin', owner_viewer: 'Owner viewer',
 };

@@ -48,6 +48,14 @@ export class SignupService {
     return new Date(Date.now() + 3 * SIGNUP_TTL_MS);
   }
 
+  /** Appends a short random suffix until `company` is free. Real names collide innocently (two "Jordan Lee"s),
+   * so an individual's org name is disambiguated instead of blocking the signup with a "name taken" error. */
+  private async disambiguate(company: string): Promise<string> {
+    let candidate = company;
+    while (await this.orgs.nameTaken(candidate)) candidate = `${company} (${randomBytes(2).toString('hex')})`;
+    return candidate;
+  }
+
   async request(input: Record<string, unknown>, ip = 'unknown'): Promise<void> {
     if (input.website) return; // honeypot: a hidden field only bots fill in. Pretend it worked, do nothing.
     const email = String(input.email ?? '').trim().toLowerCase();
@@ -57,13 +65,20 @@ export class SignupService {
     if (!EMAIL_RE.test(email) || email.length > 254) throw badRequest('INVALID_EMAIL', 'A valid work email address is required');
     const name = String(input.name ?? '').trim();
     if (!name || name.length > 80) throw badRequest('INVALID_NAME', 'Your name is required (80 characters at most)');
-    const company = String(input.company ?? '').trim();
+    let company = String(input.company ?? '').trim();
     if (company.length < 2 || company.length > 80) throw badRequest('INVALID_COMPANY', 'Company name must be 2-80 characters');
     const pwErr = validatePassword(input.password, email);
     if (pwErr) throw badRequest('WEAK_PASSWORD', pwErr);
     if (input.acceptTerms !== true) throw badRequest('TERMS_REQUIRED', 'You must accept the preview terms to continue');
+    // Individual signup: every account still gets an org (agent ownership, scoping, mandates all key off orgId),
+    // just without a company-name field. This early check is a fast, nicer-looking first pass — the one that
+    // actually matters is in verify(), since a real org isn't created (and so can't collide) until then.
+    const accountType = input.accountType === 'individual' ? 'individual' : 'business';
     if (await this.orgs.nameTaken(company)) {
-      throw new HttpError(409, 'ORG_EXISTS', `An organization named "${company}" is already registered. Ask its admin to invite you, or use a different name.`);
+      if (accountType !== 'individual') {
+        throw new HttpError(409, 'ORG_EXISTS', `An organization named "${company}" is already registered. Ask its admin to invite you, or use a different name.`);
+      }
+      company = await this.disambiguate(company);
     }
 
     // Same work and the same reply whether or not the email is already known, so this endpoint can't be used to find out who has an account.
@@ -80,7 +95,7 @@ export class SignupService {
     const token = randomBytes(24).toString('base64url');
     const now = this.clock.now();
     const rec: PendingSignup = {
-      email, name, company, passwordHash, verifyHash: sha256(token), createdAt: now, expires: now + SIGNUP_TTL_MS,
+      email, name, company, accountType, passwordHash, verifyHash: sha256(token), createdAt: now, expires: now + SIGNUP_TTL_MS,
       termsVersion: TERMS_VERSION, termsAcceptedAt: now,
     };
     await this.col.replaceOne({ _id: email as never }, { ...rec, gcAt: this.gcDate() }, { upsert: true, ...this.mongo.tx });
@@ -120,10 +135,15 @@ export class SignupService {
     if (!rec || rec.expires < this.clock.now()) throw new HttpError(400, 'INVALID_VERIFICATION', 'This verification link is invalid or has expired. Please sign up again.');
     if (await this.users.findByEmail(rec.email)) throw new HttpError(409, 'USER_EXISTS', 'An account with this email already exists. Try signing in.');
     if (await this.orgs.nameTaken(rec.company)) {
-      throw new HttpError(409, 'ORG_EXISTS', `An organization named "${rec.company}" was registered in the meantime. Ask its admin to invite you.`);
+      // Two individuals racing for the same personal name: disambiguate here too, since this is the point a
+      // real org is actually created — the other one may well have taken the plain name moments ago.
+      if (rec.accountType !== 'individual') {
+        throw new HttpError(409, 'ORG_EXISTS', `An organization named "${rec.company}" was registered in the meantime. Ask its admin to invite you.`);
+      }
+      rec.company = await this.disambiguate(rec.company);
     }
     return this.mongo.transaction(async () => {
-      const org = await this.orgs.create(rec.company, null);
+      const org = await this.orgs.create(rec.company, null, rec.accountType);
       org.createdVia = 'signup';
       const { user } = await this.users.insert({ email: rec.email, name: rec.name, role: 'owner_admin', orgId: org.id, passwordHash: rec.passwordHash }, null);
       user.termsVersion = rec.termsVersion;

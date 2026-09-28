@@ -40,6 +40,23 @@ describe('AgentsPage', () => {
     expect(exportLink.getAttribute('href')).toContain('status=suspended');
   });
 
+  it('labels an agent\'s verification by its owner\'s account type: KYC for individuals, KYB for businesses', async () => {
+    mockApi({
+      '/v1/auth/me': { user: { ...baseUser, role: 'owner_admin' }, permissions: [] },
+      '/v1/agents': {
+        agents: [
+          ag('agt_1', { name: 'PersonalBot', accountType: 'individual', verification: 2 }),
+          ag('agt_2', { name: 'CorpBot', accountType: 'business', verification: 2 }),
+        ],
+        total: 2,
+      },
+    });
+    renderWithProviders(<AgentsPage />);
+    await screen.findByText('PersonalBot');
+    expect(screen.getByText(/Fully verified \(KYC\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Fully verified \(KYB\)/)).toBeInTheDocument();
+  });
+
   it('lets the Tier and Verification dropdowns each pick several options at once', async () => {
     let lastUrl = '';
     mockApi({

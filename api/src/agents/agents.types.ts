@@ -1,4 +1,4 @@
-import { AgentStatus, Policy, Verification } from '../storage/db.types';
+import { AccountType, AgentStatus, Policy, Verification } from '../storage/db.types';
 import { ScorePoint, Tier } from '../domain/scoring';
 import { ChainCheck } from '../domain/ledger-chain';
 
@@ -8,6 +8,8 @@ export interface PublicAgent {
   name: string;
   owner: string;
   orgId: string | null;
+  /** The owning org's type, so verification reads as KYC or KYB; 'business' for an unlinked agent. */
+  accountType: AccountType;
   status: AgentStatus;
   verification: Verification;
   createdAt: number;

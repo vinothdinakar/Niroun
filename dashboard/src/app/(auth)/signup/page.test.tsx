@@ -49,5 +49,31 @@ describe('SignupPage', () => {
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/signup/check-email'));
     expect(fetchMock).toHaveBeenCalledWith('/v1/signup', expect.objectContaining({ method: 'POST' }));
+    const body = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body));
+    expect(body).toMatchObject({ accountType: 'business', company: 'Signup Test Co' });
+  });
+
+  it('switching to Individual hides the company field and sends the person\'s own name as the org name', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': mockError(401),
+      '/v1/health': { ok: true, signup: 'open', devMailbox: false },
+      '/v1/signup': {},
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<SignupPage />);
+
+    await user.click(screen.getByRole('radio', { name: 'Individual' }));
+    expect(screen.queryByLabelText('Company name')).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Your name'), 'Jordan Individual');
+    await user.type(screen.getByLabelText('Work email'), 'jordan@signup-test.example');
+    await user.type(screen.getByLabelText('Password (12+ characters)'), 'a-strong-password');
+    await user.type(screen.getByLabelText('Confirm password'), 'a-strong-password');
+    await user.click(screen.getByRole('checkbox', { name: /accept the preview terms/i }));
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/signup/check-email'));
+
+    const body = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body));
+    expect(body).toMatchObject({ accountType: 'individual', company: 'Jordan Individual' });
   });
 });

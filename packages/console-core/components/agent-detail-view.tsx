@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, errorMessage, qs } from '../lib/api';
-import { CATEGORIES, VERIFY, scoreColor, usd0, when } from '../lib/format';
+import { CATEGORIES, orgVerifyLabel, scoreColor, usd0, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { AgentProfile, LedgerView, Policy } from '../lib/types';
@@ -80,7 +80,7 @@ export function AgentDetailView({ id }: { id: string }) {
           <section className="panel pad">
             <h2 className="plain">{p.name} <Tier tier={p.tier} /></h2>
             <div className="muted">
-              {p.owner} · {VERIFY[p.verification]}{p.status === 'suspended' && <> · <span className="pill red">Suspended</span></>}
+              {p.owner} · {orgVerifyLabel(p.verification, p.accountType)}{p.status === 'suspended' && <> · <span className="pill red">Suspended</span></>}
             </div>
             <p className="muted small id">{p.id}</p>
             <div style={{ fontSize: 38, fontWeight: 700, margin: '14px 0 2px', color: scoreColor(p.score) }}>
@@ -109,7 +109,7 @@ export function AgentDetailView({ id }: { id: string }) {
                   <>
                     <label htmlFor="dv-level">Owner verification</label>
                     <select id="dv-level" value={p.verification} onChange={(e) => setVerification(p, Number(e.target.value))}>
-                      {VERIFY.map((v, i) => <option key={v} value={i}>{v}</option>)}
+                      {[0, 1, 2].map((i) => <option key={i} value={i}>{orgVerifyLabel(i, p.accountType)}</option>)}
                     </select>
                   </>
                 )}

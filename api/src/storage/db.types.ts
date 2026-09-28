@@ -121,9 +121,28 @@ export interface Outcome {
   cp: string;
 }
 
+export type AccountType = 'individual' | 'business';
+
+/** A self-service application to move an org from its current verification level to a higher one (KYB for a
+ * business, KYC for an individual). One at a time: an org can't have two pending requests. */
+export interface VerificationRequest {
+  id: string;
+  orgId: string;
+  accountType: AccountType;
+  level: 1 | 2;
+  status: 'pending' | 'approved' | 'rejected';
+  fields: Record<string, string>;
+  submittedBy: string;
+  submittedAt: number;
+  decidedBy?: string;
+  decidedAt?: number;
+  rejectionReason?: string;
+}
+
 export interface Org {
   id: string;
   name: string;
+  accountType: AccountType;
   createdAt: number;
   verification: Verification;
   createdVia: 'staff' | 'signup';
@@ -167,6 +186,7 @@ export interface PendingSignup {
   email: string;
   name: string;
   company: string;
+  accountType: AccountType;
   passwordHash: string;
   verifyHash: string;
   createdAt: number;

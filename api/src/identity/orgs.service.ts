@@ -4,7 +4,7 @@ import { newId } from '../storage/ids';
 import { ClockService } from '../core/clock.service';
 import { AuditService } from '../core/audit.service';
 import { HttpError, badRequest } from '../common/http-error';
-import { Org, User, Verification } from '../storage/db.types';
+import { AccountType, Org, User, Verification } from '../storage/db.types';
 import { Actor } from './identity.types';
 import { can } from '../domain/roles';
 
@@ -13,12 +13,13 @@ import { can } from '../domain/roles';
 export class OrgsService {
   constructor(private readonly mongo: MongoService, private readonly clock: ClockService, private readonly audit: AuditService) {}
 
-  async create(name: unknown, actor: Actor): Promise<Org> {
+  async create(name: unknown, actor: Actor, accountType: AccountType = 'business'): Promise<Org> {
     if (typeof name !== 'string' || name.trim().length < 2 || name.length > 80) throw badRequest('INVALID_NAME', 'Organization name must be 2-80 characters');
     const clean = name.trim();
     if (await this.nameTaken(clean)) throw new HttpError(409, 'ORG_EXISTS', 'An organization with that name already exists');
-    // verification: 0 unverified, 1 owner verified, 2 business verified (KYB). Staff set it; agents of the org inherit it.
-    const org: Org = { id: newId('org'), name: clean, createdAt: this.clock.now(), verification: 0, createdVia: 'staff' };
+    // verification: 0 unverified, 1 owner verified, 2 fully verified (labels differ for individual vs business —
+    // see VERIFY_LABELS in the console). Staff set it; agents of the org inherit it.
+    const org: Org = { id: newId('org'), name: clean, accountType, createdAt: this.clock.now(), verification: 0, createdVia: 'staff' };
     return this.mongo.transaction(async () => {
       try {
         await this.mongo.orgs.insert(org);
@@ -54,6 +55,19 @@ export class OrgsService {
       org.verification = level as Verification;
       await this.mongo.orgs.save(org);
       await this.audit.record(actor, 'org.verify', org.id, { level });
+      return org;
+    });
+  }
+
+  /** Corrects the type an org was created as — e.g. signup guessed wrong, or a staff-created org needs relabelling. */
+  async setAccountType(actor: User, orgId: string, accountType: unknown): Promise<Org> {
+    if (!can(actor, 'orgs')) throw new HttpError(403, 'FORBIDDEN', 'Only Bond admins can change an organization\'s type');
+    if (accountType !== 'individual' && accountType !== 'business') throw badRequest('INVALID_ACCOUNT_TYPE', 'accountType must be "individual" or "business"');
+    return this.mongo.transaction(async () => {
+      const org = await this.orThrow(orgId);
+      org.accountType = accountType;
+      await this.mongo.orgs.save(org);
+      await this.audit.record(actor, 'org.set_account_type', org.id, { accountType });
       return org;
     });
   }

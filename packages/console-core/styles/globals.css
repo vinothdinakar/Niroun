@@ -65,6 +65,15 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .onboard .btn { margin-left: 6px; }
 .check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 13px; margin: 12px 0; }
 .check input { width: auto; }
+.account-type-toggle { display: flex; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; margin: 4px 0 12px; }
+.account-type-toggle button { flex: 1; padding: 8px 12px; border-radius: 7px; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.account-type-toggle button:hover { color: var(--text); }
+.account-type-toggle button.active { background: var(--panel-2); color: var(--text); }
+.wizard-steps { display: flex; gap: 18px; margin: 4px 0 16px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.wizard-steps .active { color: var(--accent); font-weight: 700; }
+.review-list { display: grid; grid-template-columns: auto 1fr; gap: 7px 16px; margin: 10px 0 16px; }
+.review-list dt { color: var(--muted); font-size: 12px; }
+.review-list dd { margin: 0; color: var(--text); }
 
 /* header */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -139,6 +148,20 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .deal-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 14px 0; }
 .deal-summary div b { display: block; font-size: 18px; }
 .deal-summary div span { color: var(--muted); font-size: 12px; }
+
+/* agent marketplace: a grid of cards instead of a plain list */
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding: 16px; }
+.agent-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: inherit;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.agent-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.agent-card-top { display: flex; justify-content: space-between; align-items: center; }
+.agent-card h3 { font-size: 16px; margin: 2px 0 0; display: flex; align-items: center; gap: 6px; }
+.agent-card .owner { color: var(--muted); font-size: 12px; margin: 0; }
+.agent-card-score { display: flex; align-items: baseline; gap: 10px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.agent-card-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 
 main { padding: 24px 28px 60px; max-width: 1400px; margin: 0 auto; display: grid; gap: 20px; }
 .tab { display: grid; gap: 20px; }

@@ -5,7 +5,7 @@ import { ClockService } from '../core/clock.service';
 import { LedgerService } from '../core/ledger.service';
 import { HttpError, badRequest } from '../common/http-error';
 import { Scope } from '../common/scope';
-import { Agent, AgentStatus, Outcome, Tx, User, Verification } from '../storage/db.types';
+import { AccountType, Agent, AgentStatus, Outcome, Tx, User, Verification } from '../storage/db.types';
 import { agentIdFromKey } from '../domain/agent-auth';
 import { DEFAULT_POLICY, validatePolicy } from '../domain/policy';
 import { PAIR_CAP, ScoreResult, Tier, computeScore, outcomeWeight, scoreHistory } from '../domain/scoring';
@@ -110,10 +110,12 @@ export class AgentsService {
     );
   }
 
-  async publicAgent(a: Agent, outcomes?: Outcome[]): Promise<PublicAgent> {
+  /** `accountType` may be passed by a caller that already loaded the orgs (list); otherwise it is looked up. */
+  async publicAgent(a: Agent, outcomes?: Outcome[], accountType?: AccountType): Promise<PublicAgent> {
     const s = await this.scoreOf(a, undefined, outcomes);
+    const type = accountType ?? (a.orgId ? (await this.mongo.orgs.get(a.orgId))?.accountType : undefined) ?? 'business';
     return {
-      id: a.id, name: a.name, owner: a.owner, orgId: a.orgId ?? null, status: a.status ?? 'active',
+      id: a.id, name: a.name, owner: a.owner, orgId: a.orgId ?? null, accountType: type, status: a.status ?? 'active',
       verification: a.verification, createdAt: a.createdAt,
       score: s.score, tier: s.tier, faultRate: round4(1 - s.mean), outcomes: s.outcomes,
     };
@@ -250,17 +252,19 @@ export class AgentsService {
    * everything (back-compat with every caller that doesn't pass any: connect-view, organizations, overview).
    */
   async list(opts: AgentListOpts = {}): Promise<AgentListResult> {
-    const [agents, docs] = await Promise.all([
+    const [agents, docs, orgs] = await Promise.all([
       this.mongo.agents.find(),
       this.outcomes.find({}, { sort: { _id: 1 }, ...this.mongo.tx }).toArray(),
+      this.mongo.orgs.find(),
     ]);
+    const typeOf = new Map(orgs.map((o) => [o.id, o.accountType]));
     const byAgent = new Map<string, Outcome[]>();
     for (const d of docs) {
       const list = byAgent.get(d.agentId as string) ?? [];
       list.push(this.strip(d));
       byAgent.set(d.agentId as string, list);
     }
-    let out = await Promise.all(agents.map((a) => this.publicAgent(a, byAgent.get(a.id) ?? [])));
+    let out = await Promise.all(agents.map((a) => this.publicAgent(a, byAgent.get(a.id) ?? [], (a.orgId && typeOf.get(a.orgId)) || 'business')));
     out.sort((x, y) => y.score - x.score);
 
     const { search, status, tier, verification, page, pageSize } = opts;
