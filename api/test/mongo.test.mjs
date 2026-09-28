@@ -50,6 +50,30 @@ test('an agent\'s audit chain stays gap-free and unforked under a burst of simul
   assert.deepEqual(seqs, Array.from({ length: 17 }, (_, i) => i), 'sequence numbers 0..16 with no gaps or repeats');
 });
 
+test('ledger: paginated, newest first, with no overlap or gap between pages', async () => {
+  const buyer = await w.agent('Paginator', { perTxLimitCents: 10_000 });
+  const seller = await w.agent('PaginatorSeller');
+  // 55 refusals + the registration entry = 56, comfortably past the 50-per-page default
+  for (let i = 0; i < 55; i++) {
+    await buyer.quote({ counterparty: seller.agentId, amountCents: 50_000, category: 'data' });
+  }
+
+  const page1 = await w.admin('GET', `/v1/agents/${buyer.agentId}/ledger?page=1&pageSize=50`);
+  const page2 = await w.admin('GET', `/v1/agents/${buyer.agentId}/ledger?page=2&pageSize=50`);
+  assert.equal(page1.total, 56);
+  assert.equal(page2.total, 56);
+  assert.equal(page1.entries.length, 50);
+  assert.equal(page2.entries.length, 6);
+  // newest first: page 1's last entry is one seq newer than page 2's first
+  assert.equal(page1.entries.at(-1).seq, page2.entries[0].seq + 1);
+  // no entry appears on both pages
+  const seqs = [...page1.entries, ...page2.entries].map((e) => e.seq);
+  assert.equal(new Set(seqs).size, 56);
+  // whole-chain verification is unaffected by the page you ask for
+  assert.equal(page1.verification.ok, true);
+  assert.equal(page1.verification.length, 56);
+});
+
 test('the same quote cannot become two deals, even when both requests arrive at the same instant', async () => {
   const buyer = await w.agent('DoubleBuyer');
   const seller = await w.agent('DoubleSeller');

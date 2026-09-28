@@ -21,6 +21,7 @@ const profile = (overrides: Record<string, unknown> = {}) => ({
 const ledger = {
   verification: { ok: true, length: 3, headHash: 'abcdef0123456789' },
   entries: [{ ts: 0, type: 'agent.enrolled', data: {} }, { ts: 1, type: 'tx.funded', data: { txId: 'tx_1' } }],
+  total: 2,
 };
 
 const policy = { perTxLimitCents: 10000, dailyLimitCents: 50000, minCounterpartyScore: 550, allowedCategories: null };
@@ -93,5 +94,32 @@ describe('AgentDetailView', () => {
 
     expect(screen.queryByRole('button', { name: 'Suspend agent' })).not.toBeInTheDocument();
     expect(screen.getByText('Spending mandate (read-only)')).toBeInTheDocument();
+  });
+
+  it('paginates the ledger, fetching the requested page from the server', async () => {
+    let lastUrl = '';
+    mockApi({
+      '/v1/auth/me': { user: { ...baseUser, role: 'owner_admin' }, permissions: [] },
+      '/v1/agents/agt_1': profile(),
+      '/v1/console/agents/agt_1': { policy },
+      '/v1/agents/agt_1/ledger': (url: string) => {
+        lastUrl = url;
+        const page = Number(new URL(url, 'http://x').searchParams.get('page') || '1');
+        return {
+          verification: { ok: true, length: 120 },
+          entries: [{ ts: page, type: `page-${page}-entry`, data: {} }],
+          total: 120,
+        };
+      },
+    });
+    renderWithProviders(<AgentDetailView id="agt_1" />);
+    await screen.findByText('ProcureBot');
+
+    await screen.findByText('page-1-entry');
+    expect(screen.getByText('Page 1 of 3 (120 total)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(lastUrl).toContain('page=2'));
+    await screen.findByText('page-2-entry');
   });
 });

@@ -70,10 +70,10 @@ export class AgentsController {
 
   @Get('agents/:id/ledger')
   @Access('any')
-  async ledgerOf(@Param('id') id: string, @CallerScope() scope: Scope) {
+  async ledgerOf(@Param('id') id: string, @CallerScope() scope: Scope, @Query() q: Query_) {
     await this.agents.assertVisible(scope, id);
     await this.agents.orThrow(id);
-    return this.ledger.recent(id);
+    return this.ledger.recent(id, { page: q.page ? Number(q.page) : undefined, pageSize: q.pageSize ? Number(q.pageSize) : undefined });
   }
 
   /**

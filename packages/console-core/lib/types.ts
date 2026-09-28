@@ -55,6 +55,7 @@ export interface TrendPoint { day: string; premiumCents: number; payoutCents: nu
 export interface LedgerView {
   verification: { ok: boolean; length: number; headHash?: string; brokenAt?: number };
   entries: { ts: number; type: string; data: unknown }[];
+  total: number;
 }
 
 export interface Tx {

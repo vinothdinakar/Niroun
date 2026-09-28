@@ -57,9 +57,17 @@ export class LedgerService {
     return { buyer: (await this.verify(tx.buyerId)).ok, seller: (await this.verify(tx.sellerId)).ok };
   }
 
-  async recent(agentId: string, limit = 200): Promise<{ verification: ChainCheck; entries: LedgerEntry[] }> {
+  /**
+   * Newest-first, paginated. Verification always covers the whole chain (it has to — a gap or a tampered
+   * entry anywhere invalidates it), so `chain()` still loads everything; only the returned page is capped.
+   */
+  async recent(agentId: string, opts: { page?: number; pageSize?: number } = {}): Promise<{ verification: ChainCheck; entries: LedgerEntry[]; total: number }> {
     const chain = await this.chain(agentId);
-    return { verification: verifyChain(chain), entries: chain.slice(-limit).reverse() };
+    const size = Math.min(200, Math.max(1, opts.pageSize || 50));
+    const page = Math.max(1, opts.page || 1);
+    const skip = (page - 1) * size;
+    const newestFirst = chain.slice().reverse();
+    return { verification: verifyChain(chain), entries: newestFirst.slice(skip, skip + size), total: chain.length };
   }
 
   async countByType(agentIds: string[], type: string): Promise<number> {

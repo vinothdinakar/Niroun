@@ -2,39 +2,50 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, errorMessage } from '../lib/api';
+import { api, errorMessage, qs } from '../lib/api';
 import { CATEGORIES, VERIFY, scoreColor, usd0, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { AgentProfile, LedgerView, Policy } from '../lib/types';
 import { ScoreHistoryChart, SpendVsMandateChart } from './charts';
+import { Pager } from './list-controls';
 import { StatusPill, Tier } from './ui';
 
-interface Loaded { p: AgentProfile; l: LedgerView | null; policy: Policy | null }
+const LEDGER_PAGE_SIZE = 50;
+
+interface Loaded { p: AgentProfile; policy: Policy | null }
 
 export function AgentDetailView({ id }: { id: string }) {
   const { me, has, isStaff } = useSession();
   const toast = useToast();
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState('');
+  const [ledger, setLedger] = useState<LedgerView | null | undefined>(undefined); // undefined = still loading, null = not visible to you
+  const [ledgerPage, setLedgerPage] = useState(1);
 
   const load = useCallback(async () => {
     try {
-      const [p, l, detail] = await Promise.all([
+      const [p, detail] = await Promise.all([
         api<AgentProfile>('GET', `/v1/agents/${id}`),
-        api<LedgerView>('GET', `/v1/agents/${id}/ledger`).catch(() => null), // 404 unless it's yours (or you're staff)
         api<{ policy: Policy }>('GET', `/v1/console/agents/${id}`).catch(() => null),
       ]);
-      setData({ p, l, policy: detail?.policy ?? null });
+      setData({ p, policy: detail?.policy ?? null });
       setError('');
     } catch (err) {
       setError(errorMessage(err));
     }
   }, [id]);
 
-  useEffect(() => { setData(null); load(); }, [load]);
+  const loadLedger = useCallback(async () => {
+    setLedger(undefined);
+    // 404 unless it's yours (or you're staff) — the panel below just shows an explainer instead
+    setLedger(await api<LedgerView>('GET', `/v1/agents/${id}/ledger${qs({ page: ledgerPage, pageSize: LEDGER_PAGE_SIZE })}`).catch(() => null));
+  }, [id, ledgerPage]);
 
-  const changed = async () => load();
+  useEffect(() => { setData(null); load(); }, [load]);
+  useEffect(() => { loadLedger(); }, [loadLedger]);
+
+  const changed = async () => { await load(); await loadLedger(); };
   const mine = (p: AgentProfile) => isStaff || p.orgId === me?.user.orgId;
 
   async function setStatus(p: AgentProfile, status: 'active' | 'suspended') {
@@ -56,7 +67,7 @@ export function AgentDetailView({ id }: { id: string }) {
   if (error) return <p className="form-error">{error}</p>;
 
   const p = data?.p;
-  const l = data?.l;
+  const l = ledger;
   const canStatus = !!p && has('agents_suspend') && mine(p);
   const canPolicy = !!p && has('agents_manage') && mine(p);
 
@@ -110,17 +121,20 @@ export function AgentDetailView({ id }: { id: string }) {
           </section>
 
           <section className="panel pad">
-            {l ? (
+            {l === undefined ? (
+              <p className="muted">Loading…</p>
+            ) : l ? (
               <>
                 <p className={l.verification.ok ? 'ver' : ''} style={l.verification.ok ? undefined : { color: 'var(--red)' }}>
                   {l.verification.ok
                     ? <>✓ Audit ledger intact: {l.verification.length} entries, head <code>{(l.verification.headHash || '').slice(0, 16)}…</code></>
                     : <>✗ Ledger tampering detected at entry {l.verification.brokenAt}</>}
                 </p>
-                <h4 className="muted">Ledger ({l.entries.length} entries)</h4>
+                <h4 className="muted">Ledger ({l.total.toLocaleString()} entries)</h4>
                 {l.entries.map((e, i) => (
                   <div className="entry" key={i}><span className="t">{when(e.ts)}</span><span className="k">{e.type}</span><span className="d">{JSON.stringify(e.data)}</span></div>
                 ))}
+                <Pager page={ledgerPage} pageSize={LEDGER_PAGE_SIZE} total={l.total} onPage={setLedgerPage} />
               </>
             ) : (
               <p className="muted">The detailed audit trail is visible to the agent&apos;s owner and to Bond staff.</p>
