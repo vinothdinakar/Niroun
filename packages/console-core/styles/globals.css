@@ -80,6 +80,42 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); }
 .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
 
+/* header icon menus (notifications, profile) */
+.icon-group { display: flex; align-items: center; gap: 4px; }
+.icon-menu { position: relative; }
+.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; }
+.icon-btn:hover { color: var(--text); background: var(--panel-2); }
+.icon-menu-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; min-width: 200px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.35); display: grid; gap: 2px; }
+.icon-menu-header { padding: 6px 8px 8px; display: grid; gap: 2px; }
+.icon-menu-header b { color: var(--text); }
+.icon-menu-divider { height: 1px; background: var(--line); margin: 4px 0; }
+.icon-menu-item { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 6px; background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.icon-menu-item:hover { background: var(--panel-2); }
+.icon-menu-empty { padding: 10px 8px; margin: 0; }
+
+/* charts */
+.chart { margin-top: 18px; }
+.chart h4 { margin: 0 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.chart-svg-wrap { position: relative; }
+.chart-svg-wrap svg { display: block; overflow: visible; }
+.chart-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-limit { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-crosshair { stroke: var(--muted); stroke-width: 1; opacity: .5; vector-effect: non-scaling-stroke; }
+.chart-axis-label { fill: var(--muted); font-size: 10px; }
+.chart-end-label { fill: var(--text); font-size: 12px; font-weight: 700; }
+.chart-tooltip {
+  position: absolute; top: 2px; transform: translateX(-50%); pointer-events: none; z-index: 5;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px;
+  font-size: 12px; white-space: nowrap; display: flex; align-items: center; gap: 6px; box-shadow: 0 6px 16px rgba(0,0,0,.3);
+}
+.chart-tooltip b { color: var(--text); }
+.chart-tooltip-flag { color: var(--red); font-size: 11px; }
+.chart-legend, .chart-key { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.chart-key { margin-top: 6px; }
+.chart-legend span, .chart-key span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
 main { padding: 24px 28px 60px; max-width: 1400px; margin: 0 auto; display: grid; gap: 20px; }
 .tab { display: grid; gap: 20px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }

@@ -45,9 +45,12 @@ export interface Agent {
 }
 
 export interface AgentProfile extends Agent {
-  history: { score: number; ts?: number }[];
+  history: { score: number; ts: number }[];
+  spend: { day: string; spentCents: number }[];
   stats: { fulfilled: number; faults: number; volumeCents: number };
 }
+
+export interface TrendPoint { day: string; premiumCents: number; payoutCents: number }
 
 export interface LedgerView {
   verification: { ok: boolean; length: number; headHash?: string; brokenAt?: number };

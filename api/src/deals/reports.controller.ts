@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Access, CallerScope, RequirePermission } from '../common/decorators';
 import { Scope } from '../common/scope';
-import { CustomerOverview, PlatformStats, ReportsService } from './reports.service';
+import { CustomerOverview, PlatformStats, ReportsService, TrendPoint } from './reports.service';
 
 // Numbers for dashboards.
 @Controller('v1')
@@ -21,5 +21,12 @@ export class ReportsController {
   @Access('user')
   overview(@CallerScope() scope: Scope): Promise<CustomerOverview> {
     return this.reports.overview(scope);
+  }
+
+  /** Daily premium/payout totals for the last 30 days, scoped like `overview`. */
+  @Get('trends')
+  @Access('user')
+  trends(@CallerScope() scope: Scope): Promise<TrendPoint[]> {
+    return this.reports.trends(scope);
   }
 }

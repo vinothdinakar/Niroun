@@ -100,6 +100,11 @@ test('spending mandate: over-limit purchases are blocked, logged, and never reac
   );
   const ledger = await w.admin('GET', `/v1/agents/${buyer.agentId}/ledger`);
   assert.ok(ledger.entries.filter((e) => e.type === 'policy_block').length >= 3);
+
+  // spend history counts only the successful $9000 purchase, never the blocked attempts
+  const profile = await w.admin('GET', `/v1/agents/${buyer.agentId}`);
+  const totalSpend = profile.spend.reduce((sum, p) => sum + p.spentCents, 0);
+  assert.equal(totalSpend, 9000);
 });
 
 test('a serial defaulter becomes uninsurable', async () => {

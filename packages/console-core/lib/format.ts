@@ -8,6 +8,10 @@ export const usd0 = (cents: number): string => '$' + Math.round(cents / 100).toL
 export const when = (t: number | null | undefined): string =>
   t ? new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
+/** A 'YYYY-MM-DD' day string (as the API's daily aggregates use) as "Sep 21". */
+export const shortDay = (day: string): string =>
+  new Date(day + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+
 export const scoreColor = (s: number): string =>
   s >= 850 ? 'var(--green)' : s >= 700 ? 'var(--accent)' : s >= 550 ? 'var(--amber)' : s >= 400 ? 'var(--orange)' : 'var(--red)';
 

@@ -8,6 +8,11 @@ import { PoolService } from './pool.service';
 import { PoolState } from './deals.types';
 
 const round4 = (x: number): number => Math.round(x * 10000) / 10000;
+const DAY = 86_400_000;
+const TREND_DAYS = 30;
+
+/** One day's premium and payout totals, for the trend chart. Days with neither are omitted; the caller zero-fills. */
+export interface TrendPoint { day: string; premiumCents: number; payoutCents: number }
 
 export interface CustomerOverview {
   agents: number;
@@ -61,6 +66,33 @@ export class ReportsService {
       payoutsReceivedCents,
       blockedAttempts: await this.ledger.countByType(agentIds, 'policy_block'),
     };
+  }
+
+  /**
+   * Daily premiums paid and payouts received, for the trend chart. Scoped like `overview()`: a customer sees
+   * only what their own agents paid/received as buyer; staff (scope.all) see the whole platform's pool activity.
+   */
+  async trends(scope: Scope, days = TREND_DAYS): Promise<TrendPoint[]> {
+    const since = this.clock.now() - days * DAY;
+    const ids = await this.agents.scopedAgentIds(scope); // null = every agent (staff)
+    const match: Record<string, unknown> = { createdAt: { $gte: since }, status: { $ne: 'cancelled' } };
+    if (ids !== null) match.buyerId = { $in: ids };
+    const rows = await this.mongo.col('txs')
+      .aggregate([
+        { $match: match },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$createdAt' } } },
+          premiumCents: { $sum: '$premiumCents' },
+          payoutCents: { $sum: '$payoutCents' },
+        } },
+        { $sort: { _id: 1 } },
+      ], this.mongo.tx)
+      .toArray();
+    return rows.map((r) => ({
+      day: r._id as string,
+      premiumCents: (r.premiumCents as number | undefined) ?? 0,
+      payoutCents: (r.payoutCents as number | undefined) ?? 0,
+    }));
   }
 
   async stats(): Promise<PlatformStats> {
