@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 
 const TABS: NavTab[] = [
   { href: '/', label: 'Overview' },
+  { href: '/deals', label: 'Deals' },
+  { href: '/disputes', label: 'Disputes' },
+  { href: '/agents', label: 'Agents' },
   { href: '/connect', label: 'Connect agents', needs: 'enroll' },
   { href: '/team', label: 'Team', needs: 'team_manage' },
   { href: '/organizations', label: 'Organizations', needs: 'orgs' },

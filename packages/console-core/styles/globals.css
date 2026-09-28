@@ -116,6 +116,30 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .chart-legend span, .chart-key span { display: inline-flex; align-items: center; gap: 6px; }
 .chart-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
+/* list pages: filter bar and pagination footer */
+.filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.filter-bar .search { max-width: 240px; }
+.filter-bar .checks { display: flex; gap: 10px; flex-wrap: wrap; }
+.filter-bar select { width: auto; }
+.filter-bar > label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.filter-bar > label input[type="date"] { width: auto; }
+.multiselect { position: relative; }
+.multiselect-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.multiselect-btn:hover { border-color: var(--muted); }
+.multiselect-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 700; }
+.multiselect-caret { color: var(--muted); font-size: 10px; }
+.multiselect-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; min-width: 200px; max-height: 320px; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.35); display: grid; gap: 1px; }
+.multiselect-option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.multiselect-option:hover { background: var(--panel-2); }
+.multiselect-option input { width: auto; }
+.multiselect-divider { height: 1px; background: var(--line); margin: 4px 0; }
+.multiselect-clear { width: 100%; text-align: left; background: none; border: 0; color: var(--muted); font: inherit; }
+.multiselect-clear:hover { color: var(--text); }
+.pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); }
+.deal-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 14px 0; }
+.deal-summary div b { display: block; font-size: 18px; }
+.deal-summary div span { color: var(--muted); font-size: 12px; }
+
 main { padding: 24px 28px 60px; max-width: 1400px; margin: 0 auto; display: grid; gap: 20px; }
 .tab { display: grid; gap: 20px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }

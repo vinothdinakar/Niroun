@@ -37,7 +37,7 @@ before(async () => {
 after(async () => { await app.close(); });
 
 test('the API exposes the routes we expect', () => {
-  assert.equal(routes.length, 47, `found ${routes.length} routes; if you added or removed an endpoint on purpose, update this number`);
+  assert.equal(routes.length, 52, `found ${routes.length} routes; if you added or removed an endpoint on purpose, update this number`);
   const names = new Set(routes.map((r) => r.route));
   for (const must of ['POST /v1/quotes', 'POST /v1/transactions/:id/events', 'GET /v1/agents/:id/ledger', 'PUT /v1/console/agents/:id/policy', 'POST /v1/console/sweep']) {
     assert.ok(names.has(must), `missing ${must}`);
@@ -78,6 +78,7 @@ test('staff-only actions are guarded by a named permission', () => {
   assert.equal(guarded.get('POST /v1/console/orgs'), 'orgs');
   assert.equal(guarded.get('PUT /v1/console/agents/:id/policy'), 'agents_manage');
   assert.equal(guarded.get('POST /v1/console/agents/:id/status'), 'agents_suspend');
+  assert.equal(guarded.get('POST /v1/console/transactions/:id/disputes'), 'agents_manage');
 });
 
 test('anonymous requests to every non-public GET route are refused', async () => {

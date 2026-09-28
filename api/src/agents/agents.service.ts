@@ -8,10 +8,20 @@ import { Scope } from '../common/scope';
 import { Agent, AgentStatus, Outcome, Tx, User, Verification } from '../storage/db.types';
 import { agentIdFromKey } from '../domain/agent-auth';
 import { DEFAULT_POLICY, validatePolicy } from '../domain/policy';
-import { PAIR_CAP, ScoreResult, computeScore, outcomeWeight, scoreHistory } from '../domain/scoring';
-import { AgentDetail, AgentProfile, AgentWithPolicy, PublicAgent, RegisterAgentInput } from './agents.types';
+import { PAIR_CAP, ScoreResult, Tier, computeScore, outcomeWeight, scoreHistory } from '../domain/scoring';
+import { AgentDetail, AgentProfile, AgentWithPolicy, PublicAgent, RegisterAgentInput, SpendPoint } from './agents.types';
 
 const round4 = (x: number): number => Math.round(x * 10000) / 10000;
+const DAY = 86_400_000;
+const SPEND_HISTORY_DAYS = 14;
+const EXPORT_CAP = 10_000;
+
+/** Filters for the agents list/export: everything optional, applied to the already-scored directory. */
+export interface AgentListOpts {
+  search?: string; status?: AgentStatus; tier?: Tier[]; verification?: Verification[];
+  page?: number; pageSize?: number;
+}
+export interface AgentListResult { rows: PublicAgent[]; total: number }
 
 // Agents: registration, identity, the owner's mandate, the kill switch, and reputation (the Bond Score).
 // Reputation is computed from each agent's recorded outcomes (one document per outcome) every time it is read,
@@ -195,6 +205,19 @@ export class AgentsService {
     });
   }
 
+  /** Daily spend for the last two weeks (as buyer), for the "spend against mandate" chart. Days with no spend are omitted; the caller zero-fills. */
+  async spendHistory(agentId: string, days = SPEND_HISTORY_DAYS): Promise<SpendPoint[]> {
+    const since = this.clock.now() - days * DAY;
+    const rows = await this.mongo.col('txs')
+      .aggregate([
+        { $match: { buyerId: agentId, createdAt: { $gte: since }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$createdAt' } } }, spentCents: { $sum: '$terms.priceCents' } } },
+        { $sort: { _id: 1 } },
+      ], this.mongo.tx)
+      .toArray();
+    return rows.map((r) => ({ day: r._id as string, spentCents: (r.spentCents as number | undefined) ?? 0 }));
+  }
+
   // ---------- read models ----------
   async profile(id: string): Promise<AgentProfile> {
     const a = await this.orThrow(id);
@@ -204,6 +227,7 @@ export class AgentsService {
     return {
       ...(await this.publicAgent(a, outs)),
       history: scoreHistory(a, outs, a.createdAt),
+      spend: await this.spendHistory(id),
       stats: {
         fulfilled: outs.filter((o) => o.kind === 'fulfilled').length,
         faults: outs.filter((o) => o.kind === 'fault').length,
@@ -219,8 +243,13 @@ export class AgentsService {
     return { ...(await this.profile(id)), policy: a.policy };
   }
 
-  /** Every agent with its reputation, best score first. One query for agents and one for all outcomes. */
-  async list(): Promise<PublicAgent[]> {
+  /**
+   * Every agent with its reputation, best score first, one query for agents and one for all outcomes.
+   * Score isn't a stored field — it's computed here — so filtering/searching/paging all happen on this
+   * already-materialized, already-scored array, not in the database. `list()` with no options returns
+   * everything (back-compat with every caller that doesn't pass any: connect-view, organizations, overview).
+   */
+  async list(opts: AgentListOpts = {}): Promise<AgentListResult> {
     const [agents, docs] = await Promise.all([
       this.mongo.agents.find(),
       this.outcomes.find({}, { sort: { _id: 1 }, ...this.mongo.tx }).toArray(),
@@ -231,7 +260,29 @@ export class AgentsService {
       list.push(this.strip(d));
       byAgent.set(d.agentId as string, list);
     }
-    const out = await Promise.all(agents.map((a) => this.publicAgent(a, byAgent.get(a.id) ?? [])));
-    return out.sort((x, y) => y.score - x.score);
+    let out = await Promise.all(agents.map((a) => this.publicAgent(a, byAgent.get(a.id) ?? [])));
+    out.sort((x, y) => y.score - x.score);
+
+    const { search, status, tier, verification, page, pageSize } = opts;
+    if (status) out = out.filter((a) => a.status === status);
+    if (tier?.length) out = out.filter((a) => tier.includes(a.tier));
+    if (verification?.length) out = out.filter((a) => verification.includes(a.verification));
+    if (search) {
+      const needle = search.toLowerCase();
+      out = out.filter((a) => a.name.toLowerCase().includes(needle) || a.owner.toLowerCase().includes(needle) || a.id.toLowerCase().includes(needle));
+    }
+    const total = out.length;
+    if (page !== undefined || pageSize !== undefined) {
+      const size = Math.min(100, pageSize || 25);
+      const skip = Math.max(0, ((page || 1) - 1) * size);
+      out = out.slice(skip, skip + size);
+    }
+    return { rows: out, total };
+  }
+
+  /** Every agent matching the filters (ignores `page`/`pageSize`), capped at 10,000 — for CSV export. */
+  async exportRows(opts: AgentListOpts): Promise<PublicAgent[]> {
+    const { rows } = await this.list({ ...opts, page: undefined, pageSize: undefined });
+    return rows.slice(0, EXPORT_CAP);
   }
 }

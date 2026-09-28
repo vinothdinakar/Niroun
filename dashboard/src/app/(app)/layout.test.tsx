@@ -34,4 +34,13 @@ describe('dashboard app layout', () => {
     expect(screen.queryByRole('link', { name: 'Connect agents' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Team' })).not.toBeInTheDocument();
   });
+
+  it('shows Deals, Disputes and Agents to every role — reading is scoped, not permission-gated', async () => {
+    mockApi({ '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer', orgId: 'org_1', orgName: 'Acme Corp' }, permissions: [] } });
+    renderWithProviders(<AppLayout><div>content</div></AppLayout>);
+    await screen.findByRole('link', { name: 'Overview' });
+    expect(screen.getByRole('link', { name: 'Deals' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Disputes' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Agents' })).toBeInTheDocument();
+  });
 });

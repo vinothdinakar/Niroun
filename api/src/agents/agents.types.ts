@@ -17,8 +17,12 @@ export interface PublicAgent {
   outcomes: number;
 }
 
+/** One day's spend, for the "spend against mandate" chart. */
+export interface SpendPoint { day: string; spentCents: number }
+
 export interface AgentProfile extends PublicAgent {
   history: ScorePoint[];
+  spend: SpendPoint[];
   stats: { fulfilled: number; faults: number; volumeCents: number };
   breakdown: { meanSuccess: number; stdDev: number; evidenceWeight: number };
   ledger: { length: number; ok: boolean; headHash: string | null };

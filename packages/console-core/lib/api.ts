@@ -29,3 +29,15 @@ export async function api<T = unknown>(method: 'GET' | 'POST' | 'PUT', path: str
 }
 
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : 'Something went wrong');
+
+/** Builds a `?a=1&b=2` query string, dropping empty/undefined values. Arrays are joined with commas. */
+export const qs = (params: Record<string, string | number | string[] | undefined | null>): string => {
+  const s = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    const str = Array.isArray(v) ? v.join(',') : String(v);
+    if (str) s.set(k, str);
+  }
+  const str = s.toString();
+  return str ? `?${str}` : '';
+};

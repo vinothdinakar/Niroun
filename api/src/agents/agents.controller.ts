@@ -1,17 +1,34 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Access, AgentId, CallerScope, Proof } from '../common/decorators';
 import { Scope } from '../common/scope';
 import { LedgerService } from '../core/ledger.service';
 import { MongoService } from '../storage/mongo.service';
-import { Org } from '../storage/db.types';
+import { AgentStatus, Org, Verification } from '../storage/db.types';
 import { agentIdFromKey } from '../domain/agent-auth';
+import { Tier } from '../domain/scoring';
+import { csvRow } from '../common/csv';
 import { EnrollmentsService } from '../identity/enrollments.service';
 import { OrgsService } from '../identity/orgs.service';
-import { AgentsService } from './agents.service';
+import { AgentListOpts, AgentsService } from './agents.service';
 import { AgentProfile, AgentWithPolicy, PublicAgent } from './agents.types';
 
 type Json = Record<string, unknown>;
 type Proofed = { reqHash: string } | null;
+type Query_ = Record<string, string | undefined>;
+
+/** Shared by `GET agents` and `GET agents/export`. */
+function parseAgentQuery(q: Query_): AgentListOpts {
+  const csvList = (v?: string) => (v ? v.split(',').filter(Boolean) : undefined);
+  return {
+    search: q.search || undefined,
+    status: q.status === 'active' || q.status === 'suspended' ? (q.status as AgentStatus) : undefined,
+    tier: csvList(q.tier) as Tier[] | undefined,
+    verification: csvList(q.verification)?.map(Number) as Verification[] | undefined,
+    page: q.page ? Number(q.page) : undefined,
+    pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+  };
+}
 
 // Agents: the reputation directory (readable by anyone signed in), and the agent's own identity endpoints.
 @Controller('v1')
@@ -26,8 +43,23 @@ export class AgentsController {
 
   @Get('agents')
   @Access('any')
-  async list(): Promise<{ agents: PublicAgent[] }> {
-    return { agents: await this.agents.list() };
+  async list(@Query() q: Query_): Promise<{ agents: PublicAgent[]; total: number }> {
+    const { rows, total } = await this.agents.list(parseAgentQuery(q));
+    return { agents: rows, total };
+  }
+
+  // Declared before `agents/:id`: a literal path must win over the `:id` route it would otherwise match.
+  @Get('agents/export')
+  @Access('any')
+  async exportAgents(@Res() res: Response, @Query() q: Query_): Promise<void> {
+    const rows = await this.agents.exportRows(parseAgentQuery(q));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="agents-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.write(csvRow(['id', 'name', 'owner', 'orgId', 'status', 'tier', 'score', 'faultRate', 'verification', 'createdAt']));
+    for (const a of rows) {
+      res.write(csvRow([a.id, a.name, a.owner, a.orgId ?? '', a.status, a.tier, a.score, a.faultRate, a.verification, a.createdAt]));
+    }
+    res.end();
   }
 
   @Get('agents/:id')

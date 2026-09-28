@@ -1,0 +1,1 @@
+export { DisputesView as default } from '@bond/console-core/components/disputes-view';

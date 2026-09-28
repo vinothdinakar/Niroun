@@ -146,6 +146,24 @@ export class ConsoleController {
   }
 
   // ---- operations ----
+  /**
+   * Self-service: the buyer's own org (or staff) opens a dispute without the agent's own signature — for when
+   * the agent's own integration never calls this itself. Same arbiter run as the agent path; a human can only
+   * start a review here, never decide it. `manageable` keeps this to your own org's agents (staff: anywhere).
+   */
+  @Post('transactions/:id/disputes')
+  @RequirePermission('agents_manage')
+  @HttpCode(200)
+  openDispute(@CurrentUser() user: User, @Param('id') id: string, @Body() body: Json) {
+    return this.mongo.transaction(async () => {
+      const tx = await this.deals.txOrThrow(id);
+      await this.manageable(user, tx.buyerId);
+      const out = await this.disputes.openByUser(user, tx, body.reason);
+      await this.audit.record(user, 'dispute.open', out.dispute.id, { txId: id, reason: body.reason });
+      return out;
+    });
+  }
+
   @Post('disputes/:id/resolve')
   @RequirePermission('resolve')
   @HttpCode(200)

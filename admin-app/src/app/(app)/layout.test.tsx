@@ -24,6 +24,9 @@ describe('admin-app app layout', () => {
     expect(screen.getByRole('link', { name: 'Audit log' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Connect agents' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Team' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Deals' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Disputes' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Agents' })).toBeInTheDocument();
   });
 
   it('hides Organizations/Audit/Team for a reviewer, who holds none of those permissions', async () => {
@@ -33,5 +36,9 @@ describe('admin-app app layout', () => {
     expect(screen.queryByRole('link', { name: 'Organizations' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Audit log' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Team' })).not.toBeInTheDocument();
+    // reading (Deals/Disputes/Agents) is not permission-gated — a reviewer still sees them
+    expect(screen.getByRole('link', { name: 'Deals' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Disputes' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Agents' })).toBeInTheDocument();
   });
 });

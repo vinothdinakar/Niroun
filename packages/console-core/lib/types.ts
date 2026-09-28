@@ -59,13 +59,41 @@ export interface LedgerView {
 
 export interface Tx {
   id: string;
-  updatedAt: number;
+  status: string;
+  category?: string;
+  buyerId?: string;
   buyerName: string;
+  buyerOrgId?: string | null;
+  sellerId?: string;
   sellerName: string;
+  sellerOrgId?: string | null;
   amountCents: number;
+  coverageCents?: number;
   premiumCents: number;
   payoutCents?: number;
-  status: string;
+  createdAt?: number;
+  updatedAt: number;
+  deliverBy?: number;
+  disputeId?: string | null;
+}
+
+export interface DealEvent { seq: number; agentId: string; type: string; data: Record<string, unknown>; ts: number; hash: string }
+
+/** The raw dispute record embedded in a deal's detail — distinct from the row-shaped `Dispute` the list page uses. */
+export interface DealDisputeDetail {
+  id: string; reason: string; openedAt: number;
+  status: 'open' | 'needs_review' | 'resolved';
+  verdict: string | null; rule: string | null; reasons: string[];
+  decidedBy: 'auto' | 'human' | null; resolvedAt: number | null; reviewedBy?: string | null;
+}
+
+export interface DealDetail extends Tx {
+  buyerId: string; buyerOrgId: string | null; sellerId: string; sellerOrgId: string | null;
+  category: string; createdAt: number; deliverBy: number; disputeId: string | null;
+  terms: { spec: string; priceCents: number; deliverBy: number };
+  termsHash: string;
+  events: DealEvent[];
+  dispute: DealDisputeDetail | null;
 }
 
 export interface Dispute {

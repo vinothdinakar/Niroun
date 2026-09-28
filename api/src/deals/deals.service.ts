@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Document, Filter } from 'mongodb';
 import { MongoService } from '../storage/mongo.service';
 import { newId } from '../storage/ids';
 import { ClockService } from '../core/clock.service';
@@ -11,13 +12,15 @@ import { CATEGORIES, MAX_PD, QUOTE_TTL_MS, isCategory, priceQuote } from '../dom
 import { Violation, checkPolicy, pct } from '../domain/policy';
 import { AgentsService } from '../agents/agents.service';
 import { PoolService } from './pool.service';
-import { BriefTx, CreateTxInput, EventInput, FullTx, PricePreview, PricePreviewInput, QuoteInput, QuoteOutcome } from './deals.types';
+import { BriefTx, CreateTxInput, DealListOpts, DealListResult, EventInput, FullTx, PricePreview, PricePreviewInput, QuoteInput, QuoteOutcome } from './deals.types';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const HEX64 = /^[0-9a-f]{64}$/;
+const EXPORT_CAP = 10_000;
 const round4 = (x: number): number => Math.round(x * 10000) / 10000;
 const isInt = (x: unknown): x is number => typeof x === 'number' && Number.isSafeInteger(x);
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 type EventData = Record<string, string | number | boolean>;
 interface EventRule {
@@ -290,11 +293,11 @@ export class DealsService {
   /** Deals as the API shows them, with the parties' names filled in (one lookup for the whole batch). */
   async briefMany(txs: Tx[]): Promise<BriefTx[]> {
     const ids = [...new Set(txs.flatMap((t) => [t.buyerId, t.sellerId]))];
-    const names = new Map((await this.mongo.agents.getMany(ids)).map((a) => [a.id, a.name]));
+    const agents = new Map((await this.mongo.agents.getMany(ids)).map((a) => [a.id, a]));
     return txs.map((tx) => ({
       id: tx.id, status: tx.status, category: tx.category,
-      buyerId: tx.buyerId, buyerName: names.get(tx.buyerId),
-      sellerId: tx.sellerId, sellerName: names.get(tx.sellerId),
+      buyerId: tx.buyerId, buyerName: agents.get(tx.buyerId)?.name, buyerOrgId: agents.get(tx.buyerId)?.orgId ?? null,
+      sellerId: tx.sellerId, sellerName: agents.get(tx.sellerId)?.name, sellerOrgId: agents.get(tx.sellerId)?.orgId ?? null,
       amountCents: tx.terms.priceCents, coverageCents: tx.coverageCents, premiumCents: tx.premiumCents,
       payoutCents: tx.payoutCents, createdAt: tx.createdAt, updatedAt: tx.updatedAt, deliverBy: tx.terms.deliverBy,
       disputeId: tx.disputeId ?? null,
@@ -306,16 +309,57 @@ export class DealsService {
     return {
       ...brief, terms: tx.terms, termsHash: tx.termsHash,
       events: (await this.ledger.entriesForTx(tx)).map(({ seq, agentId, type, data, ts, hash }) => ({ seq, agentId, type, data, ts, hash })),
+      dispute: tx.disputeId ? await this.mongo.disputes.get(tx.disputeId) : null,
     };
   }
 
-  async list(opts: { scope?: Scope; agent?: string; limit?: number } = {}): Promise<BriefTx[]> {
-    const { scope = { all: true }, agent, limit = 100 } = opts;
-    const filter = await this.agents.txFilter(scope);
-    const and: object[] = [filter];
+  /** id/status/... come straight off a Mongo doc; `EntityStore` isn't used here because it has no `skip`. */
+  private hydrateTxDocs(docs: Document[]): Tx[] {
+    return docs.map((d) => {
+      const { _id, ...rest } = d;
+      return { id: _id as string, ...rest } as Tx;
+    });
+  }
+
+  private async buildDealFilter(opts: DealListOpts): Promise<Filter<Document>> {
+    const { scope = { all: true }, agent, status, category, search, from, to } = opts;
+    const and: object[] = [await this.agents.txFilter(scope)];
     if (agent) and.push({ $or: [{ buyerId: agent }, { sellerId: agent }] });
-    const txs = await this.mongo.txs.find({ $and: and }, { sort: { updatedAt: -1, _id: -1 }, limit: Math.min(500, limit) });
-    return this.briefMany(txs);
+    if (status?.length) and.push({ status: { $in: status } });
+    if (category?.length) and.push({ category: { $in: category } });
+    if (from) and.push({ createdAt: { $gte: from } });
+    if (to) and.push({ createdAt: { $lte: to } });
+    if (search) {
+      const rx = new RegExp(escapeRegex(search), 'i');
+      const matchedAgentIds = (await this.mongo.agents.find({ name: rx })).map((a) => a.id);
+      and.push({ $or: [{ _id: rx }, { buyerId: { $in: matchedAgentIds } }, { sellerId: { $in: matchedAgentIds } }] });
+    }
+    return { $and: and };
+  }
+
+  /**
+   * Without `page`/`pageSize` this behaves exactly as before (sorted, capped at `limit`, default 500-max) —
+   * every existing caller (the Overview's `?limit=60`) is unaffected. `total` is always the full filtered
+   * count, an extra field old callers simply don't read.
+   */
+  async list(opts: DealListOpts = {}): Promise<DealListResult> {
+    const { page, pageSize, limit = 100 } = opts;
+    const filter = await this.buildDealFilter(opts);
+    const paging = page !== undefined || pageSize !== undefined;
+    const size = paging ? Math.min(100, pageSize || 25) : Math.min(500, limit);
+    const skip = paging ? Math.max(0, ((page || 1) - 1) * size) : 0;
+    const [docs, total] = await Promise.all([
+      this.mongo.col('txs').find(filter, { sort: { updatedAt: -1, _id: -1 }, skip, limit: size, ...this.mongo.tx }).toArray(),
+      this.mongo.col('txs').countDocuments(filter, this.mongo.tx),
+    ]);
+    return { rows: await this.briefMany(this.hydrateTxDocs(docs)), total };
+  }
+
+  /** Every row matching the filters (ignores `page`/`pageSize`), capped at 10,000 — for CSV export. */
+  async exportRows(opts: DealListOpts): Promise<BriefTx[]> {
+    const filter = await this.buildDealFilter(opts);
+    const docs = await this.mongo.col('txs').find(filter, { sort: { updatedAt: -1, _id: -1 }, limit: EXPORT_CAP, ...this.mongo.tx }).toArray();
+    return this.briefMany(this.hydrateTxDocs(docs));
   }
 
   /** A deal the caller is allowed to see, or 404 (so other people's deals don't reveal themselves). */

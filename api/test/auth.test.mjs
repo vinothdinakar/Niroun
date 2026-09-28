@@ -143,6 +143,13 @@ test('isolation: a customer sees only their own company\'s agents, deals, disput
   assert.ok(!disputes.some((d) => d.id === nwDispute.id));
   assert.ok((await nwAdmin.req('GET', '/v1/disputes')).body.disputes.some((d) => d.id === nwDispute.id));
 
+  // scope is AND'ed in before search/filter, not after: searching for Northwind's own deal/dispute from an
+  // Acme session finds nothing, it doesn't leak through the new query params
+  const crossSearch = (await acmeAdmin.req('GET', '/v1/transactions?search=IsoNorthwindBot')).body;
+  assert.equal(crossSearch.total, 0);
+  const crossDisputeSearch = (await acmeAdmin.req('GET', '/v1/disputes?search=IsoNorthwindBot')).body;
+  assert.equal(crossDisputeSearch.total, 0);
+
   // the overview counts only what this customer is allowed to see
   const ov = (await acmeAdmin.req('GET', '/v1/console/overview')).body;
   const acmeAgents = (await acmeAdmin.req('GET', '/v1/agents')).body.agents.filter((a) => a.orgId === acme.id);
@@ -152,6 +159,12 @@ test('isolation: a customer sees only their own company\'s agents, deals, disput
 
   // the reputation directory itself stays visible: you need it to pick counterparties
   assert.ok((await acmeAdmin.req('GET', '/v1/agents')).body.agents.some((a) => a.id === n1.agentId));
+
+  // the premium/payout trend is scoped the same way: only what this customer's own agents paid
+  assert.ok(acmeTx.premiumCents > 0, 'test setup: the funded order should have a premium to find');
+  const trend = (await acmeAdmin.req('GET', '/v1/trends')).body;
+  const totalPremium = trend.reduce((sum, p) => sum + p.premiumCents, 0);
+  assert.equal(totalPremium, acmeTx.premiumCents, "Acme's trend must total only their own premium, not Northwind's");
 });
 
 test('enrollment: codes link an agent to its owner, once, and can\'t be spoofed', async () => {

@@ -5,6 +5,9 @@ import type { ReactNode } from 'react';
 // (those are Bond-staff-only concepts, handled in the separate admin-app), so there's nothing to show.
 const TABS: NavTab[] = [
   { href: '/', label: 'Overview' },
+  { href: '/deals', label: 'Deals' },
+  { href: '/disputes', label: 'Disputes' },
+  { href: '/agents', label: 'Agents' },
   { href: '/connect', label: 'Connect agents', needs: 'enroll' },
   { href: '/team', label: 'Team', needs: 'team_manage' },
 ];
