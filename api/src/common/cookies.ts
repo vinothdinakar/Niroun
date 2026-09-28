@@ -30,6 +30,11 @@ export function parseCookies(header: string | undefined): Record<string, string>
   return out;
 }
 
-/** HttpOnly (page scripts can't read it), SameSite=Strict (never sent on cross-site requests). */
-export const sessionCookie = (name: string, token: string, maxAgeSec: number, secure: boolean): string =>
-  `${name}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSec}${secure ? '; Secure' : ''}`;
+/**
+ * HttpOnly (page scripts can't read it), SameSite=Strict (never sent on cross-site requests).
+ * `persistent: false` (an unchecked "remember me") omits Max-Age: a true browser-session cookie, gone once the
+ * browser closes. The server-side session still expires on its own schedule either way (see SESSION_MAX_MS) —
+ * this only controls whether the browser forgets it sooner.
+ */
+export const sessionCookie = (name: string, token: string, maxAgeSec: number, secure: boolean, persistent = true): string =>
+  `${name}=${token}; HttpOnly; SameSite=Strict; Path=/${persistent ? `; Max-Age=${maxAgeSec}` : ''}${secure ? '; Secure' : ''}`;

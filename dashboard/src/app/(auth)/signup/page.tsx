@@ -7,6 +7,7 @@ import { api, errorMessage } from '@bond/console-core/lib/api';
 import { useFlow } from '@bond/console-core/lib/flow';
 import { useHealth } from '@bond/console-core/lib/health';
 import { useRedirectIfSignedIn } from '@bond/console-core/lib/hooks';
+import { PasswordInput } from '@bond/console-core/components/ui';
 
 // Self-serve signup for a company that owns agents. Nothing exists until the emailed link is used.
 export default function SignupPage() {
@@ -59,8 +60,8 @@ export default function SignupPage() {
       <label htmlFor="su-company">Company name</label>
       <input id="su-company" autoComplete="organization" minLength={2} maxLength={80} required value={f.company} onChange={set('company')} />
       <div className="two">
-        <div><label htmlFor="su-pw">Password (12+ characters)</label><input id="su-pw" type="password" autoComplete="new-password" minLength={12} required value={f.password} onChange={set('password')} /></div>
-        <div><label htmlFor="su-pw2">Confirm password</label><input id="su-pw2" type="password" autoComplete="new-password" minLength={12} required value={f.password2} onChange={set('password2')} /></div>
+        <div><label htmlFor="su-pw">Password (12+ characters)</label><PasswordInput id="su-pw" autoComplete="new-password" minLength={12} required value={f.password} onChange={set('password')} /></div>
+        <div><label htmlFor="su-pw2">Confirm password</label><PasswordInput id="su-pw2" autoComplete="new-password" minLength={12} required value={f.password2} onChange={set('password2')} /></div>
       </div>
       {/* honeypot: people never see or fill this; bots do */}
       <div className="hp" aria-hidden="true"><label>Website <input tabIndex={-1} autoComplete="off" value={f.website} onChange={set('website')} /></label></div>

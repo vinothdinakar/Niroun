@@ -17,7 +17,7 @@ const ACCOUNT_MAX_FAILS = 5;
 const RECOVERY_CODE_COUNT = 10;
 
 type Purpose = 'totp' | 'enroll';
-interface Challenge { userId: string; purpose: Purpose; exp: number; attempts: number }
+interface Challenge { userId: string; purpose: Purpose; exp: number; attempts: number; remember: boolean }
 
 // Two-factor: authenticator-app codes (TOTP), one-time recovery codes, and first-time enrolment.
 // A password alone never yields a session for anyone enrolled, or for any staff account.
@@ -39,11 +39,11 @@ export class MfaService {
   ) {}
 
   /** Issues a short-lived, single-purpose token that proves the password step. It unlocks nothing but the next step. */
-  newChallenge(user: User, purpose: Purpose): string {
+  newChallenge(user: User, purpose: Purpose, remember = true): string {
     const token = randomBytes(24).toString('base64url');
     const now = this.clock.now();
     for (const [h, c] of this.challenges) if (c.exp < now) this.challenges.delete(h);
-    this.challenges.set(sha256(token), { userId: user.id, purpose, exp: now + CHALLENGE_TTL_MS, attempts: 0 });
+    this.challenges.set(sha256(token), { userId: user.id, purpose, exp: now + CHALLENGE_TTL_MS, attempts: 0, remember });
     return token;
   }
 
@@ -76,7 +76,7 @@ export class MfaService {
   }
 
   /** Step 2 of sign-in for enrolled accounts: an authenticator code, or a one-time recovery code. */
-  async verifyLogin(challengeToken: unknown, code: unknown): Promise<{ token: string; user: User; usedRecovery: boolean; recoveryCodesLeft: number }> {
+  async verifyLogin(challengeToken: unknown, code: unknown): Promise<{ token: string; user: User; usedRecovery: boolean; recoveryCodesLeft: number; remember: boolean }> {
     const { h, c, user } = await this.challenge(challengeToken, 'totp');
     const input = String(code ?? '').trim();
     const now = this.clock.now();
@@ -103,7 +103,7 @@ export class MfaService {
     await this.mongo.users.updateOne({ _id: user.id as never }, { $set: { lastLoginAt: now } });
     await this.audit.record(user, 'login.success', user.id, { mfa: usedRecovery ? 'recovery' : 'totp' });
     // reload: the atomic updates above changed the stored user, and the response must describe the current one
-    return { ...(await this.sessions.start(await this.current(user), true)), usedRecovery, recoveryCodesLeft: left };
+    return { ...(await this.sessions.start(await this.current(user), true)), usedRecovery, recoveryCodesLeft: left, remember: c.remember };
   }
 
   /** Enrolment step 1: generate a secret to put into an authenticator app. Nothing is active until step 2 proves it works. */
@@ -116,7 +116,7 @@ export class MfaService {
   }
 
   /** Enrolment step 2: the person types a code from their app. Only now is 2FA switched on; recovery codes are shown once. */
-  async confirmEnrollment(challengeToken: unknown, code: unknown): Promise<{ token: string; user: User; recoveryCodes: string[] }> {
+  async confirmEnrollment(challengeToken: unknown, code: unknown): Promise<{ token: string; user: User; recoveryCodes: string[]; remember: boolean }> {
     const { h, c, user } = await this.challenge(challengeToken, 'enroll');
     if (!user.totpPending) throw badRequest('NOT_STARTED', 'Start two-factor setup first');
     const step = verifyTotp(this.secretOf(user.totpPending), code, this.clock.now());
@@ -133,7 +133,7 @@ export class MfaService {
     this.rate.clear(`t:${user.id}`);
     await this.audit.record(user, '2fa.enrolled', user.id);
     await this.audit.record(user, 'login.success', user.id, { mfa: 'enrolled' });
-    return { ...(await this.sessions.start(await this.current(user), true)), recoveryCodes: codes };
+    return { ...(await this.sessions.start(await this.current(user), true)), recoveryCodes: codes, remember: c.remember };
   }
 
   /** The stored user as it is now (after this request's atomic updates). */

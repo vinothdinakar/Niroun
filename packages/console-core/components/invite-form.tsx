@@ -7,6 +7,7 @@ import { tokenFromHash } from '../lib/format';
 import { useFlow } from '../lib/flow';
 import { useHashToken } from '../lib/hooks';
 import type { SignInResult } from '../lib/types';
+import { PasswordInput } from './ui';
 
 // An invitation (or a first-run admin setup, or an account reset) lands here as /invite#token=...
 // The person chooses their own password; nobody is ever handed one. Same form for both consoles.
@@ -51,9 +52,9 @@ export function InviteForm() {
       <h2>Set your password</h2>
       <p className="muted">Choose a password to finish setting up your account (at least 12 characters).</p>
       <label htmlFor="iv-pw">New password</label>
-      <input id="iv-pw" type="password" autoComplete="new-password" minLength={12} required autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
+      <PasswordInput id="iv-pw" autoComplete="new-password" minLength={12} required autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
       <label htmlFor="iv-pw2">Confirm password</label>
-      <input id="iv-pw2" type="password" autoComplete="new-password" minLength={12} required value={pw2} onChange={(e) => setPw2(e.target.value)} />
+      <PasswordInput id="iv-pw2" autoComplete="new-password" minLength={12} required value={pw2} onChange={(e) => setPw2(e.target.value)} />
       <p className="form-error" role="alert">{error}</p>
       <button className="btn primary" type="submit" disabled={busy}>Create account</button>
     </form>

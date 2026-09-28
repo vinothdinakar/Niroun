@@ -25,25 +25,25 @@ export class AuthController {
     @Inject(BOND_OPTIONS) private readonly options: BondOptions,
   ) {}
 
-  private cookie(res: Response, req: BondRequest, token: string, maxAgeSec: number): void {
+  private cookie(res: Response, req: BondRequest, token: string, maxAgeSec: number, persistent = true): void {
     const name = sessionCookieName(appHint(req.headers['x-bond-app'] as string | undefined));
-    res.setHeader('Set-Cookie', sessionCookie(name, token, maxAgeSec, this.options.cookieSecure));
+    res.setHeader('Set-Cookie', sessionCookie(name, token, maxAgeSec, this.options.cookieSecure, persistent));
   }
 
-  private async signedIn(res: Response, req: BondRequest, session: { token: string; user: User }, extra: Json = {}): Promise<Json> {
-    this.cookie(res, req, session.token, SESSION_MAX_MS / 1000);
+  private async signedIn(res: Response, req: BondRequest, session: { token: string; user: User }, extra: Json = {}, remember = true): Promise<Json> {
+    this.cookie(res, req, session.token, SESSION_MAX_MS / 1000, remember);
     return { user: await this.users.publicUser(session.user), permissions: permissionsOf(session.user.role), ...extra };
   }
 
-  private async step(res: Response, req: BondRequest, s: SignInStep): Promise<Json> {
-    return isSession(s) ? this.signedIn(res, req, s) : { needs: s.needs, challenge: s.challenge };
+  private async step(res: Response, req: BondRequest, s: SignInStep, remember = true): Promise<Json> {
+    return isSession(s) ? this.signedIn(res, req, s, {}, remember) : { needs: s.needs, challenge: s.challenge };
   }
 
   @Post('login')
   @Access('public')
   @HttpCode(200)
   async login(@Body() body: Json, @ClientIp() ip: string, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
-    return this.step(res, req, await this.auth.login(body.email, body.password, ip));
+    return this.step(res, req, await this.auth.login(body.email, body.password, ip, !!body.remember), !!body.remember);
   }
 
   @Post('accept-invite')
@@ -88,7 +88,7 @@ export class AuthController {
   @HttpCode(200)
   async verify(@Body() body: Json, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
     const r = await this.mfa.verifyLogin(body.challenge, body.code);
-    return this.signedIn(res, req, r, { usedRecoveryCode: r.usedRecovery, recoveryCodesLeft: r.recoveryCodesLeft });
+    return this.signedIn(res, req, r, { usedRecoveryCode: r.usedRecovery, recoveryCodesLeft: r.recoveryCodesLeft }, r.remember);
   }
 
   @Post('2fa/begin')
@@ -103,7 +103,7 @@ export class AuthController {
   @HttpCode(200)
   async confirm(@Body() body: Json, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
     const r = await this.mfa.confirmEnrollment(body.challenge, body.code);
-    return this.signedIn(res, req, r, { recoveryCodes: r.recoveryCodes });
+    return this.signedIn(res, req, r, { recoveryCodes: r.recoveryCodes }, r.remember);
   }
 
   @Post('2fa/recovery-codes')

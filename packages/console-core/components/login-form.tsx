@@ -8,6 +8,7 @@ import { useHealth } from '../lib/health';
 import { useRedirectIfSignedIn } from '../lib/hooks';
 import { useSession } from '../lib/session';
 import type { SignInResult } from '../lib/types';
+import { PasswordInput } from './ui';
 
 /**
  * `mode: 'staff'` is for the admin app: staff accounts are never self-service, so it never offers a signup
@@ -20,6 +21,7 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
   const health = useHealth();
   const [email, setEmail] = useState(flow.prefillEmail);
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +34,7 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
     setError('');
     setNotice('');
     try {
-      const r = await api<SignInResult>('POST', '/v1/auth/login', { email, password });
+      const r = await api<SignInResult>('POST', '/v1/auth/login', { email, password, remember });
       setPassword('');
       await flow.continueSignIn(r);
     } catch (err) {
@@ -48,7 +50,8 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
       <label htmlFor="li-email">Email</label>
       <input id="li-email" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
       <label htmlFor="li-pw">Password</label>
-      <input id="li-pw" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      <PasswordInput id="li-pw" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      <label className="check"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me</label>
       <p className="form-error" role="alert">{error || notice}</p>
       <button className="btn primary" type="submit" disabled={busy}>Sign in</button>
       {mode === 'staff' ? (

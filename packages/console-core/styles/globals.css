@@ -24,6 +24,10 @@ code { font-family: var(--mono); font-size: 12px; }
 label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
 input, select, textarea { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
 .form-error { color: var(--red); min-height: 1.2em; margin: 8px 0; font-size: 13px; }
+.pw-field { position: relative; }
+.pw-field input { padding-right: 38px; }
+.pw-toggle { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); display: grid; place-items: center; width: 30px; height: 30px; padding: 0; background: none; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; }
+.pw-toggle:hover { color: var(--text); }
 
 /* sign-in */
 .auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(900px 400px at 50% 0%, rgba(61,219,192,.1), transparent); }
