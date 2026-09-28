@@ -8,7 +8,7 @@ import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { DealDetail } from '../lib/types';
 import { useLoaderShim } from './use-loader-shim';
-import { Pill } from './ui';
+import { ExpandableCell, Pill } from './ui';
 
 const DISPUTABLE = new Set(['funded', 'delivered']);
 
@@ -49,7 +49,7 @@ export function DealDetailView({ id }: { id: string }) {
             <span className="t">{when(e.ts)}</span>
             <span className="who">{e.agentId === data.buyerId ? 'Buyer' : e.agentId === data.sellerId ? 'Seller' : '—'}</span>
             <span className="k">{e.type}</span>
-            <span className="d">{JSON.stringify(e.data)}</span>
+            <ExpandableCell text={JSON.stringify(e.data)} />
           </div>
         ))}
       </section>

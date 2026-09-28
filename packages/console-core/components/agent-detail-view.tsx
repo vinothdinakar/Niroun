@@ -9,7 +9,7 @@ import { useToast } from '../lib/toast';
 import type { AgentProfile, LedgerView, Policy } from '../lib/types';
 import { ScoreHistoryChart, SpendVsMandateChart } from './charts';
 import { Pager } from './list-controls';
-import { StatusPill, Tier } from './ui';
+import { ExpandableCell, StatusPill, Tier } from './ui';
 
 const LEDGER_PAGE_SIZE = 50;
 
@@ -132,7 +132,7 @@ export function AgentDetailView({ id }: { id: string }) {
                 </p>
                 <h4 className="muted">Ledger ({l.total.toLocaleString()} entries)</h4>
                 {l.entries.map((e, i) => (
-                  <div className="entry" key={i}><span className="t">{when(e.ts)}</span><span className="k">{e.type}</span><span className="d">{JSON.stringify(e.data)}</span></div>
+                  <div className="entry" key={i}><span className="t">{when(e.ts)}</span><span className="k">{e.type}</span><ExpandableCell text={JSON.stringify(e.data)} /></div>
                 ))}
                 <Pager page={ledgerPage} pageSize={LEDGER_PAGE_SIZE} total={l.total} onPage={setLedgerPage} />
               </>

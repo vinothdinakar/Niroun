@@ -68,6 +68,21 @@ function EyeIcon({ crossedOut }: { crossedOut: boolean }) {
   );
 }
 
+/** The `.d` cell of a ledger/timeline `.entry` row: truncated with an ellipsis, click to show the full value. */
+export function ExpandableCell({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <button
+      type="button"
+      className={expanded ? 'd expanded' : 'd'}
+      onClick={() => setExpanded((v) => !v)}
+      title={expanded ? 'Click to collapse' : 'Click to expand'}
+    >
+      {text}
+    </button>
+  );
+}
+
 /** Shown when someone reaches a page their role doesn't include (the API refuses the data anyway). */
 export function NotAllowed() {
   return <section className="panel pad"><h2 className="plain">Not available</h2><p className="muted">Your role doesn&apos;t include this section.</p></section>;

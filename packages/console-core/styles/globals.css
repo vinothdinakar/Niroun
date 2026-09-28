@@ -195,8 +195,14 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel-2); }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
 .grid4 div { background: var(--panel-2); border-radius: 8px; padding: 10px; }
 .grid4 b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; } .grid4 span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-.entry { font-family: var(--mono); font-size: 12px; padding: 6px 0; border-bottom: 1px solid rgba(34,48,90,.6); display: flex; gap: 10px; }
-.entry .t { color: var(--muted); min-width: 92px; } .entry .who { color: var(--text); min-width: 50px; } .entry .k { color: var(--accent); min-width: 130px; } .entry .d { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* grid, not flex: fixed column widths so every row's time/type/data line up, whatever their own content's length is */
+.entry { font-family: var(--mono); font-size: 12px; padding: 6px 0; border-bottom: 1px solid rgba(34,48,90,.6); display: grid; grid-template-columns: 140px 150px 1fr; gap: 10px; align-items: baseline; }
+.entry:has(.who) { grid-template-columns: 140px 60px 150px 1fr; }
+.entry .t, .entry .who, .entry .k, .entry .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry .t { color: var(--muted); } .entry .who { color: var(--text); } .entry .k { color: var(--accent); }
+.entry .d { color: var(--muted); background: none; border: 0; padding: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; }
+.entry .d:hover { color: var(--text); }
+.entry .d.expanded { overflow: visible; text-overflow: clip; white-space: normal; word-break: break-all; }
 .manage { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
 .manage h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .manage .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
