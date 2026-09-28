@@ -6,6 +6,7 @@ dist-ssr/
 # runtime data, and the local secrets generated beside it
 data/
 **/demo/demo-users.json
+**/demo/test-agent-keys.json
 
 # Next.js (dashboard, admin-app)
 .next/
