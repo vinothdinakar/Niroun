@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, errorMessage } from '../lib/api';
 import { when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useCopy, useToast } from '../lib/toast';
 import type { Agent, Enrollment, Org } from '../lib/types';
-import { useAgentDrawer } from './agent-drawer';
 import { useLoaderShim } from './use-loader-shim';
 import { EmptyRow, FormPanel, NotAllowed, Panel, StatusPill, Tier } from './ui';
 
@@ -17,13 +18,13 @@ export function ConnectView() {
 
 function Connect() {
   const { me, isStaff } = useSession();
-  const drawer = useAgentDrawer();
+  const router = useRouter();
   const toast = useToast();
   const copy = useCopy();
   const { data, error } = useLoaderShim(async () => {
     const [orgs, ag] = await Promise.all([api<{ orgs: Org[] }>('GET', '/v1/console/orgs'), api<{ agents: Agent[] }>('GET', '/v1/agents')]);
     return { orgs: orgs.orgs, agents: ag.agents };
-  }, [drawer.version]);
+  }, []);
   const [orgId, setOrgId] = useState('');
   const [label, setLabel] = useState('');
   const [result, setResult] = useState<Enrollment | null>(null);
@@ -77,8 +78,8 @@ function Connect() {
           <thead><tr><th>Agent</th><th>Organization</th><th>Tier</th><th>Status</th></tr></thead>
           <tbody>
             {linked.length ? linked.map((a) => (
-              <tr key={a.id} className="click" onClick={() => drawer.open(a.id)}>
-                <td className="name"><button className="rowbtn" onClick={(e) => { e.stopPropagation(); drawer.open(a.id); }}>{a.name}</button></td>
+              <tr key={a.id} className="click" onClick={() => router.push(`/agents/${a.id}`)}>
+                <td className="name"><Link className="rowbtn" href={`/agents/${a.id}`} onClick={(e) => e.stopPropagation()}>{a.name}</Link></td>
                 <td>{a.owner}</td>
                 <td><Tier tier={a.tier} /> {a.score}</td>
                 <td><StatusPill suspended={a.status === 'suspended'} /></td>

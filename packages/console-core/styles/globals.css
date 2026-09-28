@@ -192,19 +192,11 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel-2); }
 .secret code { display: block; word-break: break-all; padding: 8px 10px; background: var(--bg); border-radius: 6px; margin: 8px 0; user-select: all; }
 .secret pre { margin: 8px 0 0; padding: 10px; background: var(--bg); border-radius: 6px; overflow-x: auto; font: 12px/1.5 var(--mono); color: #cfe0ff; }
 
-/* drawer */
-.backdrop { position: fixed; inset: 0; background: rgba(3,6,16,.6); display: none; z-index: 10; }
-.backdrop.open { display: block; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(540px, 100%); background: var(--panel); border-left: 1px solid var(--line); z-index: 11; transform: translateX(100%); transition: transform .2s; overflow: auto; padding: 22px; }
-.drawer.open { transform: none; }
-.drawer h3 { font-size: 20px; margin-bottom: 2px; }
-.drawer .id { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
 .grid4 div { background: var(--panel-2); border-radius: 8px; padding: 10px; }
 .grid4 b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; } .grid4 span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-.close { float: right; }
 .entry { font-family: var(--mono); font-size: 12px; padding: 6px 0; border-bottom: 1px solid rgba(34,48,90,.6); display: flex; gap: 10px; }
-.entry .t { color: var(--muted); min-width: 92px; } .entry .k { color: var(--accent); min-width: 130px; } .entry .d { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry .t { color: var(--muted); min-width: 92px; } .entry .who { color: var(--text); min-width: 50px; } .entry .k { color: var(--accent); min-width: 130px; } .entry .d { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manage { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
 .manage h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
 .manage .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }

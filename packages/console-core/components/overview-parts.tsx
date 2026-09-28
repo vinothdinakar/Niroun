@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, errorMessage } from '../lib/api';
-import { VERDICT, VERIFY, usd, usd0, when } from '../lib/format';
+import { CATEGORIES, VERDICT, VERIFY, usd, usd0, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Agent, Dispute, Org, OwnerOverview, PoolStats, Tx } from '../lib/types';
-import { useAgentDrawer } from './agent-drawer';
 import { EmptyRow, Pill, ScoreBar, Tier } from './ui';
 
 // ---------- headline numbers ----------
@@ -70,16 +70,16 @@ export function Onboarding({ overview, org }: { overview: OwnerOverview; org: Or
 // ---------- agent registry ----------
 export function AgentsTable({ agents }: { agents: Agent[] }) {
   const { me } = useSession();
-  const drawer = useAgentDrawer();
+  const router = useRouter();
   const mineOrg = me?.user.orgId;
   return (
     <table>
       <thead><tr><th>Agent</th><th>Tier</th><th>Bond Score</th><th className="num">Fault rate</th><th>Status</th></tr></thead>
       <tbody>
         {agents.map((a) => (
-          <tr key={a.id} className="click" onClick={() => drawer.open(a.id)}>
+          <tr key={a.id} className="click" onClick={() => router.push(`/agents/${a.id}`)}>
             <td>
-              <div className="name"><button className="rowbtn" onClick={(e) => { e.stopPropagation(); drawer.open(a.id); }}>{a.name}</button>{mineOrg && a.orgId === mineOrg && <span className="mine">YOURS</span>}</div>
+              <div className="name"><Link className="rowbtn" href={`/agents/${a.id}`} onClick={(e) => e.stopPropagation()}>{a.name}</Link>{mineOrg && a.orgId === mineOrg && <span className="mine">YOURS</span>}</div>
               <div className="owner">{a.owner}</div>
             </td>
             <td><Tier tier={a.tier} /></td>
@@ -94,20 +94,26 @@ export function AgentsTable({ agents }: { agents: Agent[] }) {
 }
 
 // ---------- transactions ----------
-export function TxsTable({ txs }: { txs: Tx[] }) {
+export function TxsTable({ txs, showCategory }: { txs: Tx[]; showCategory?: boolean }) {
   return (
     <table>
-      <thead><tr><th>Updated</th><th>Buyer → Seller</th><th className="num">Amount</th><th className="num">Premium</th><th>Status</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Updated</th><th>Buyer → Seller</th>{showCategory && <th>Category</th>}
+          <th className="num">Amount</th><th className="num">Premium</th><th>Status</th>
+        </tr>
+      </thead>
       <tbody>
         {txs.length ? txs.map((t) => (
           <tr key={t.id}>
-            <td className="muted">{when(t.updatedAt)}</td>
+            <td className="muted"><Link href={`/deals/${t.id}`}>{when(t.updatedAt)}</Link></td>
             <td>{t.buyerName}<span className="arrow">→</span>{t.sellerName}</td>
+            {showCategory && <td className="muted">{t.category && CATEGORIES.includes(t.category) ? t.category.replace('_', ' ') : t.category}</td>}
             <td className="num">{usd(t.amountCents)}</td>
             <td className="num">{t.premiumCents ? usd(t.premiumCents) : '—'}</td>
             <td><Pill status={t.status} />{t.payoutCents ? <> <span className="muted">{usd0(t.payoutCents)}</span></> : null}</td>
           </tr>
-        )) : <EmptyRow cols={5}>No transactions yet.</EmptyRow>}
+        )) : <EmptyRow cols={showCategory ? 6 : 5}>No transactions yet.</EmptyRow>}
       </tbody>
     </table>
   );
@@ -126,7 +132,7 @@ export function DisputesTable({ disputes, onResolved }: { disputes: Dispute[]; o
         </tr>
       </thead>
       <tbody>
-        {disputes.length ? disputes.slice(0, 60).map((d) => {
+        {disputes.length ? disputes.map((d) => {
           const [label, color] = VERDICT[d.status === 'needs_review' ? 'needs_review' : d.verdict] ?? ['—', 'gray'];
           return (
             <tr key={d.id}>
