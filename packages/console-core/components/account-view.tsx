@@ -2,11 +2,12 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api';
-import { ROLE_LABEL, when } from '../lib/format';
+import { ROLE_LABEL, describeUserAgent, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { Me } from '../lib/types';
+import type { Me, SessionRow } from '../lib/types';
 import { PasswordDialog, RecoveryDialog } from './account-dialogs';
+import { useLoaderShim } from './use-loader-shim';
 
 const initials = (name: string): string =>
   name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
@@ -15,6 +16,7 @@ const SECTIONS = [
   { id: 'profile', label: 'Profile' },
   { id: 'password', label: 'Password' },
   { id: 'two-step', label: 'Two-step verification' },
+  { id: 'sessions', label: 'Active sessions' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 
@@ -81,6 +83,7 @@ function Account({ me }: { me: Me }) {
           {active === 'profile' && <ProfileSection me={me} />}
           {active === 'password' && <PasswordSection />}
           {active === 'two-step' && <TwoStepSection me={me} />}
+          {active === 'sessions' && <SessionsSection />}
         </section>
       </div>
     </div>
@@ -182,6 +185,79 @@ function TwoStepSection({ me }: { me: Me }) {
         </div>
       )}
       <RecoveryDialog open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+function SessionsSection() {
+  const toast = useToast();
+  const { data, error, reload } = useLoaderShim(() => api<{ sessions: SessionRow[] }>('GET', '/v1/auth/sessions'), []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+
+  async function endSession(s: SessionRow) {
+    setBusy(s.id);
+    try {
+      await api('POST', `/v1/auth/sessions/${s.id}/revoke`, {});
+      await reload();
+      toast(s.current ? 'Signed out' : 'That device was signed out');
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function endOthers() {
+    setConfirmAll(false);
+    try {
+      const r = await api<{ revoked: number }>('POST', '/v1/auth/sessions/revoke-all', {});
+      await reload();
+      toast(r.revoked ? `Signed out of ${r.revoked} other session${r.revoked === 1 ? '' : 's'}` : 'No other sessions were signed in');
+    } catch (err) {
+      toast(errorMessage(err), true);
+    }
+  }
+
+  if (error) return <p className="form-error">{error}</p>;
+  if (!data) return <p className="muted">Loading…</p>;
+  const others = data.sessions.filter((s) => !s.current);
+
+  return (
+    <>
+      <h2 className="plain">Active sessions</h2>
+      <p className="muted small">Every device currently signed in to your account. Changing your password signs out every device but this one.</p>
+      {data.sessions.map((s, i) => (
+        <div className={'setting' + (i === 0 ? ' first' : '')} key={s.id}>
+          <div>
+            <b>{describeUserAgent(s.userAgent)} {s.current && <span className="pill blue">This device</span>}</b>
+            <p className="muted small">{s.ip} · last active {when(s.lastSeen)} · signed in {when(s.createdAt)}</p>
+          </div>
+          {!s.current && (
+            // The nav also has a plain "Sign out" button (for this device); naming this one after the device
+            // it ends keeps them distinct for assistive tech when several rows are listed.
+            <button
+              className="btn ghost sm" type="button" disabled={busy === s.id}
+              aria-label={`Sign out ${describeUserAgent(s.userAgent)}`} onClick={() => void endSession(s)}
+            >
+              {busy === s.id ? 'Signing out…' : 'Sign out'}
+            </button>
+          )}
+        </div>
+      ))}
+      {others.length > 0 && (
+        <div className="row-start">
+          {confirmAll ? (
+            <>
+              <span className="muted small">Sign out of {others.length} other session{others.length === 1 ? '' : 's'}?</span>
+              <button className="btn danger sm" type="button" onClick={() => void endOthers()}>Yes, sign out</button>
+              <button className="btn ghost sm" type="button" onClick={() => setConfirmAll(false)}>Cancel</button>
+            </>
+          ) : (
+            <button className="btn ghost" type="button" onClick={() => setConfirmAll(true)}>Sign out everywhere else</button>
+          )}
+        </div>
+      )}
     </>
   );
 }

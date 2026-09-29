@@ -20,6 +20,17 @@ export interface User {
 
 export interface Me { user: User; permissions: Permission[] }
 
+/** One signed-in device/browser, as the "active sessions" list shows it. `id` is an opaque handle for the
+ * revoke endpoints, not a secret (it can't be turned back into anything that would let someone sign in). */
+export interface SessionRow {
+  id: string;
+  current: boolean;
+  createdAt: number;
+  lastSeen: number;
+  ip: string;
+  userAgent: string | null;
+}
+
 /** What sign-in / accept-invite answer: either a finished session, or the step still needed. */
 export type SignInResult = Me | { needs: 'totp' | 'enroll'; challenge: string };
 

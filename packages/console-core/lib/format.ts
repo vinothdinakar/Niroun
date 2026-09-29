@@ -64,6 +64,18 @@ export const VERIFY_FIELD_SPEC: Record<'individual' | 'business', VerifyField[]>
   ],
 };
 
+/** A short "Browser on OS" label from a raw User-Agent string, for the active-sessions list. Best-effort and
+ * cosmetic only — never used for anything security-sensitive — so an unrecognized string just falls back
+ * gracefully instead of throwing. Order matters: some browsers' UAs also match another browser's pattern. */
+export function describeUserAgent(ua: string | null | undefined): string {
+  if (!ua) return 'Unknown device';
+  const os = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android'
+    : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : null;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera'
+    : /Chrome\/|CriOS\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : null;
+  return browser && os ? `${browser} on ${os}` : browser || os || 'Unknown device';
+}
+
 export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Bond admin', reviewer: 'Bond reviewer', owner_admin: 'Owner admin', owner_viewer: 'Owner viewer',
 };

@@ -19,7 +19,7 @@ describe('AccountPage', () => {
     expect(screen.getByText('ada@acme.test')).toBeInTheDocument();
     expect(screen.getByText('AO')).toBeInTheDocument();
     expect(screen.getByText('Owner admin')).toHaveClass('pill');
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions']);
     expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -81,5 +81,73 @@ describe('AccountPage', () => {
     });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
     expect(screen.getByLabelText('Name')).toHaveValue('Ada L.');
+  });
+
+  it('lists other signed-in devices with a Sign out button, and marks this one', async () => {
+    window.location.hash = '#sessions';
+    mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/sessions': {
+        sessions: [
+          { id: 'sess_this', current: true, createdAt: 1000, lastSeen: 2000, ip: '10.0.0.1', userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/120.0 Safari/537.36' },
+          { id: 'sess_other', current: false, createdAt: 500, lastSeen: 900, ip: '203.0.113.9', userAgent: 'Mozilla/5.0 (iPhone) Safari/604.1' },
+        ],
+      },
+    });
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByText('This device')).toBeInTheDocument();
+    expect(screen.getByText(/Chrome on Windows/)).toBeInTheDocument();
+    expect(screen.getByText(/Safari on iOS/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out everywhere else' })).toBeInTheDocument();
+    // Only the other device gets its own per-device sign-out button; this one is ended from the nav instead,
+    // whose plain "Sign out" stays the only exact match of that name.
+    expect(screen.getByRole('button', { name: 'Sign out Safari on iOS' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Sign out' })).toHaveLength(1);
+  });
+
+  it('signs out one other device without touching this one', async () => {
+    window.location.hash = '#sessions';
+    let revoked = false;
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/sessions': () => ({
+        sessions: revoked
+          ? [{ id: 'sess_this', current: true, createdAt: 1000, lastSeen: 2000, ip: '10.0.0.1', userAgent: null }]
+          : [
+              { id: 'sess_this', current: true, createdAt: 1000, lastSeen: 2000, ip: '10.0.0.1', userAgent: null },
+              { id: 'sess_other', current: false, createdAt: 500, lastSeen: 900, ip: '203.0.113.9', userAgent: null },
+            ],
+      }),
+      '/v1/auth/sessions/sess_other/revoke': () => { revoked = true; return { ok: true }; },
+    });
+    renderWithProviders(<AccountPage />);
+    // Not the nav's plain "Sign out" (that would end this device): the per-device button is named after the device.
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out Unknown device' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith('/v1/auth/sessions/sess_other/revoke'))).toBe(true));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Sign out Unknown device' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument(); // the nav's own sign-out is untouched
+  });
+
+  it('signs out every other device after confirming, and reports how many', async () => {
+    window.location.hash = '#sessions';
+    let revoked = false;
+    mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/sessions': () => ({
+        sessions: revoked
+          ? [{ id: 'sess_this', current: true, createdAt: 1000, lastSeen: 2000, ip: '10.0.0.1', userAgent: null }]
+          : [
+              { id: 'sess_this', current: true, createdAt: 1000, lastSeen: 2000, ip: '10.0.0.1', userAgent: null },
+              { id: 'sess_a', current: false, createdAt: 500, lastSeen: 900, ip: '203.0.113.9', userAgent: null },
+              { id: 'sess_b', current: false, createdAt: 400, lastSeen: 800, ip: '203.0.113.10', userAgent: null },
+            ],
+      }),
+      '/v1/auth/sessions/revoke-all': () => { revoked = true; return { revoked: 2 }; },
+    });
+    renderWithProviders(<AccountPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out everywhere else' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, sign out' }));
+    expect(await screen.findByText(/Signed out of 2 other sessions/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign out everywhere else' })).not.toBeInTheDocument();
   });
 });
