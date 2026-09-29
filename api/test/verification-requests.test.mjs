@@ -9,6 +9,15 @@ after(async () => { await w.close(); });
 const businessFields = { legalName: 'Acme Testing LLC', registrationNumber: 'EIN-123456', address: '1 Main St', website: 'https://acme.test' };
 const individualFields = { legalName: 'Jordan Lee', idType: 'passport', idNumber: 'P123456', address: '2 Elm St' };
 
+const PDF = Buffer.from('%PDF-1.4 test evidence');
+
+// Applies the way the console does: upload the required evidence file first, then submit naming it.
+async function submit(session, body) {
+  const kind = body.fields?.idType ? 'id_document' : 'incorporation';
+  const up = await session.upload(kind, PDF, 'application/pdf', 'evidence.pdf');
+  return session.req('POST', '/v1/console/verification-requests', { documentIds: [up.body.id], ...body });
+}
+
 async function ownerFor(accountType) {
   const org = await w.app.accounts.createOrg(`Verif Test ${++n}`, null, accountType);
   const owner = await w.makeUser({ role: 'owner_admin', orgId: org.id });
@@ -18,7 +27,7 @@ async function ownerFor(accountType) {
 test('an org admin applies for level 1, staff approve it, and it cascades to the org\'s agents', async () => {
   const { org, owner } = await ownerFor('business');
   const session = await owner.signIn();
-  const r = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const r = await submit(session, { level: 1, fields: businessFields });
   assert.equal(r.status, 201);
   assert.equal(r.body.status, 'pending');
   assert.equal(r.body.orgId, org.id);
@@ -39,7 +48,7 @@ test('an org admin applies for level 1, staff approve it, and it cascades to the
 test('rejecting records a reason and never touches the org\'s verification', async () => {
   const { owner } = await ownerFor('individual');
   const session = await owner.signIn();
-  const r = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: individualFields });
+  const r = await submit(session, { level: 1, fields: individualFields });
   const decided = await w.admin('POST', `/v1/console/verification-requests/${r.body.id}/decide`, { decision: 'reject', reason: 'ID number does not match name' });
   assert.equal(decided.request.status, 'rejected');
   assert.equal(decided.request.rejectionReason, 'ID number does not match name');
@@ -57,19 +66,19 @@ test('validation: missing fields, wrong level, one pending at a time, and only a
   assert.equal(missing.status, 400);
   assert.equal(missing.body.error.code, 'MISSING_FIELD');
 
-  const badLevel = await session.req('POST', '/v1/console/verification-requests', { level: 3, fields: businessFields });
+  const badLevel = await submit(session, { level: 3, fields: businessFields });
   assert.equal(badLevel.status, 400);
   assert.equal(badLevel.body.error.code, 'INVALID_LEVEL');
 
-  const ok = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const ok = await submit(session, { level: 1, fields: businessFields });
   assert.equal(ok.status, 201);
-  const again = await session.req('POST', '/v1/console/verification-requests', { level: 2, fields: businessFields });
+  const again = await submit(session, { level: 2, fields: businessFields });
   assert.equal(again.status, 409);
   assert.equal(again.body.error.code, 'REQUEST_PENDING');
 
   const viewer = await w.makeUser({ role: 'owner_viewer', orgId: org.id });
   const viewerSession = await viewer.signIn();
-  const forbidden = await viewerSession.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const forbidden = await submit(viewerSession, { level: 1, fields: businessFields });
   assert.equal(forbidden.status, 403);
 });
 
@@ -77,7 +86,7 @@ test('requesting a level the org already has (or exceeds) is refused', async () 
   const { owner, org } = await ownerFor('business');
   await w.admin('POST', `/v1/console/orgs/${org.id}/verify`, { level: 2 });
   const session = await owner.signIn();
-  const r = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const r = await submit(session, { level: 1, fields: businessFields });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.code, 'ALREADY_AT_LEVEL');
 });
@@ -85,10 +94,10 @@ test('requesting a level the org already has (or exceeds) is refused', async () 
 test('an individual applies with ID fields, not business fields', async () => {
   const { owner } = await ownerFor('individual');
   const session = await owner.signIn();
-  const wrongShape = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const wrongShape = await submit(session, { level: 1, fields: businessFields });
   assert.equal(wrongShape.status, 400, 'business fields have no idType/idNumber, which an individual actually needs');
 
-  const ok = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: individualFields });
+  const ok = await submit(session, { level: 1, fields: individualFields });
   assert.equal(ok.status, 201);
   assert.equal(ok.body.accountType, 'individual');
 });
@@ -98,8 +107,8 @@ test('list: staff see every request, an org sees only its own', async () => {
   const { owner: ownerB } = await ownerFor('business');
   const sessionA = await ownerA.signIn();
   const sessionB = await ownerB.signIn();
-  const ra = await sessionA.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
-  const rb = await sessionB.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const ra = await submit(sessionA, { level: 1, fields: businessFields });
+  const rb = await submit(sessionB, { level: 1, fields: businessFields });
 
   const forA = await sessionA.req('GET', '/v1/console/verification-requests');
   assert.equal(forA.body.requests.length, 1);
@@ -113,7 +122,7 @@ test('list: staff see every request, an org sees only its own', async () => {
 test('a decided request cannot be decided twice, and only staff may decide', async () => {
   const { owner } = await ownerFor('business');
   const session = await owner.signIn();
-  const r = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: businessFields });
+  const r = await submit(session, { level: 1, fields: businessFields });
 
   const byOwner = await session.req('POST', `/v1/console/verification-requests/${r.body.id}/decide`, { decision: 'approve' });
   assert.equal(byOwner.status, 403);

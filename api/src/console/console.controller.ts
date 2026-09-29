@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Access, CallerScope, CurrentUser, RequirePermission } from '../common/decorators';
 import { notFound } from '../common/http-error';
 import { Scope } from '../common/scope';
@@ -10,7 +11,9 @@ import { DisputesService } from '../deals/disputes.service';
 import { EnrollmentsService } from '../identity/enrollments.service';
 import { OrgsService } from '../identity/orgs.service';
 import { UsersService } from '../identity/users.service';
+import { VerificationDocumentsService } from '../identity/verification-documents.service';
 import { VerificationRequestsService } from '../identity/verification-requests.service';
+import { BondRequest } from '../common/request';
 import { isStaff } from '../domain/roles';
 import { Org, User } from '../storage/db.types';
 
@@ -32,6 +35,7 @@ export class ConsoleController {
     private readonly users: UsersService,
     private readonly enrollments: EnrollmentsService,
     private readonly verificationRequests: VerificationRequestsService,
+    private readonly verificationDocuments: VerificationDocumentsService,
   ) {}
 
   /** Owner-side actions on an agent: staff anywhere, customers only on agents their organisation owns. */
@@ -82,7 +86,27 @@ export class ConsoleController {
   @RequirePermission('request_verification')
   @HttpCode(201)
   submitVerificationRequest(@CurrentUser() user: User, @Body() body: Json) {
-    return this.verificationRequests.submit(user, body.level, (body.fields as Json) ?? {});
+    return this.verificationRequests.submit(user, body.level, (body.fields as Json) ?? {}, body.documentIds);
+  }
+
+  /** One evidence file (PDF/PNG/JPEG, up to 5 MB): the body is the file itself, the rest is in the query string.
+   * Upload first, then name the returned ids in the application. */
+  @Post('verification-documents')
+  @RequirePermission('request_verification')
+  @HttpCode(201)
+  uploadVerificationDocument(@CurrentUser() user: User, @Req() req: BondRequest, @Query('kind') kind: string, @Query('filename') filename: string) {
+    return this.verificationDocuments.upload(user, kind, filename, req.headers['content-type'], req.upload);
+  }
+
+  /** Downloads an evidence file: staff reviewing an application, or the org that uploaded it. Never a public link. */
+  @Get('verification-documents/:id')
+  async downloadVerificationDocument(@CurrentUser() user: User, @Param('id') id: string, @Res() res: Response): Promise<void> {
+    const { doc, data } = await this.verificationDocuments.read(user, id);
+    res.setHeader('Content-Type', doc.contentType);
+    const ascii = doc.filename.replace(/[^ -~]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.filename)}`);
+    res.setHeader('Content-Length', String(data.length));
+    res.end(data);
   }
 
   /** Staff see every request (their review queue); an org sees only its own history. */

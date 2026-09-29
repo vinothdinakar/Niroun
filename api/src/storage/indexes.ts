@@ -34,6 +34,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
     db.collection('verification_requests').createIndex({ orgId: 1, submittedAt: -1 }, { name: 'verification_requests_org' }),
     db.collection('verification_requests').createIndex({ status: 1, submittedAt: 1 }, { name: 'verification_requests_status' }),
+    db.collection('verification_documents').createIndex({ orgId: 1, requestId: 1 }, { name: 'verification_documents_org' }),
+    db.collection('verification_documents').createIndex({ requestId: 1, purgedAt: 1, uploadedAt: 1 }, { name: 'verification_documents_purge' }),
 
     db.collection('sessions').createIndex({ userId: 1 }, { name: 'sessions_user' }),
     db.collection('sessions').createIndex({ gcAt: 1 }, { expireAfterSeconds: 0, name: 'sessions_gc' }),

@@ -8,6 +8,10 @@ import { Scope } from '../common/scope';
 import { AccountType, User, VerificationRequest } from '../storage/db.types';
 import { can } from '../domain/roles';
 import { OrgsService } from './orgs.service';
+import { DocumentView, VerificationDocumentsService } from './verification-documents.service';
+
+/** A request as the console sees it: with the metadata of its evidence files. */
+export type VerificationRequestView = VerificationRequest & { documents: DocumentView[] };
 
 // What a business vs. an individual needs to say about themselves to move up a verification level.
 // Self-attested — nobody checks a passport number against anything — same fidelity as the rest of this
@@ -28,6 +32,7 @@ export class VerificationRequestsService {
     private readonly clock: ClockService,
     private readonly audit: AuditService,
     private readonly orgs: OrgsService,
+    private readonly documents: VerificationDocumentsService,
   ) {}
 
   private get col() {
@@ -38,7 +43,7 @@ export class VerificationRequestsService {
     return FIELD_SPEC[accountType];
   }
 
-  async submit(user: User, levelInput: unknown, fieldsInput: Record<string, unknown>): Promise<VerificationRequest> {
+  async submit(user: User, levelInput: unknown, fieldsInput: Record<string, unknown>, documentIds: unknown): Promise<VerificationRequestView> {
     if (!can(user, 'request_verification')) throw new HttpError(403, 'FORBIDDEN', 'Only an organization\'s own admin can apply for verification');
     if (levelInput !== 1 && levelInput !== 2) throw badRequest('INVALID_LEVEL', 'level must be 1 or 2');
     const level = levelInput as 1 | 2;
@@ -59,19 +64,25 @@ export class VerificationRequestsService {
     }
     const req: VerificationRequest = {
       id: newId('ver'), orgId: org.id, accountType: org.accountType, level, status: 'pending',
-      fields, submittedBy: user.id, submittedAt: this.clock.now(),
+      fields, documentIds: [], submittedBy: user.id, submittedAt: this.clock.now(),
     };
     return this.mongo.transaction(async () => {
+      req.documentIds = await this.documents.attach(org.id, org.accountType, req.id, documentIds);
       await this.col.insert(req);
-      await this.audit.record(user, 'verification.request', req.id, { orgId: org.id, level });
-      return req;
+      await this.audit.record(user, 'verification.request', req.id, { orgId: org.id, level, documents: req.documentIds.length });
+      return (await this.withDocuments([req]))[0];
     });
   }
 
   /** `scope.all` (staff): every request, newest first. Otherwise: one org's own history. */
-  async list(scope: Scope): Promise<VerificationRequest[]> {
+  async list(scope: Scope): Promise<VerificationRequestView[]> {
     const filter = scope.all ? {} : { orgId: scope.orgId };
-    return this.col.find(filter, { sort: { submittedAt: -1 } });
+    return this.withDocuments(await this.col.find(filter, { sort: { submittedAt: -1 } }));
+  }
+
+  private async withDocuments(requests: VerificationRequest[]): Promise<VerificationRequestView[]> {
+    const docs = await this.documents.forRequests(requests.flatMap((r) => r.documentIds ?? []));
+    return requests.map((r) => ({ ...r, documents: (r.documentIds ?? []).flatMap((id) => docs.get(id) ?? []) }));
   }
 
   async orThrow(id: string): Promise<VerificationRequest> {

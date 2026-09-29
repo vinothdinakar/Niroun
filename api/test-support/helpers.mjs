@@ -58,7 +58,19 @@ export async function setup() {
       r = await req('POST', '/v1/auth/2fa/verify', { challenge: r.body.challenge, code: await nextCode(email, totpSecret) });
     }
     if (r.status !== 200 || r.body.needs) throw new Error(`sign-in failed: ${r.status} ${JSON.stringify(r.body)}`);
-    return { req, user: r.body.user, permissions: r.body.permissions, get cookie() { return cookie; } };
+    // An evidence-file upload: the body is the file's bytes, the details ride in the query string.
+    const upload = async (kind, data, contentType, filename = 'evidence.pdf') => {
+      const res = await fetch(baseUrl + `/v1/console/verification-documents?kind=${kind}&filename=${encodeURIComponent(filename)}`, {
+        method: 'POST', headers: { 'Content-Type': contentType, ...(cookie ? { Cookie: cookie } : {}) }, body: data,
+      });
+      return { status: res.status, body: await res.json().catch(() => ({})) };
+    };
+    // A download: the raw bytes, not JSON.
+    const download = async (path) => {
+      const res = await fetch(baseUrl + path, { headers: cookie ? { Cookie: cookie } : {} });
+      return { status: res.status, data: Buffer.from(await res.arrayBuffer()), headers: res.headers };
+    };
+    return { req, upload, download, user: r.body.user, permissions: r.body.permissions, get cookie() { return cookie; } };
   };
 
   // Creates a person with a random strong password (never hard-coded) and returns their credentials + a sign-in helper.

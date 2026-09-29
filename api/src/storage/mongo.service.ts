@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit } from 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ClientSession, Collection, Db, Document, MongoClient, MongoServerError } from 'mongodb';
 import { BOND_OPTIONS, BondOptions } from '../config/options';
-import { Agent, Dispute, Org, Quote, Tx, User, VerificationRequest } from './db.types';
+import { Agent, Dispute, Org, Quote, Tx, User, VerificationDocument, VerificationRequest } from './db.types';
 import { EntityStore } from './entity-store';
 import { ensureIndexes } from './indexes';
 
@@ -34,6 +34,7 @@ export class MongoService implements OnModuleInit, OnApplicationShutdown {
     fromDoc: (doc) => { delete doc.nameKey; },
   });
   readonly verificationRequests = new EntityStore<VerificationRequest>(this, 'verification_requests');
+  readonly verificationDocuments = new EntityStore<VerificationDocument>(this, 'verification_documents');
 
   constructor(@Inject(BOND_OPTIONS) private readonly options: BondOptions) {}
 

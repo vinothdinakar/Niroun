@@ -11,6 +11,7 @@ import { ACCESS_KEY, AccessMode, PERMISSION_KEY } from './decorators';
 import { HttpError, forbidden } from './http-error';
 import { appHint, parseCookies, sessionCookieName } from './cookies';
 import { BondRequest, Principal } from './request';
+import { isUploadRequest } from './edge.middleware';
 
 const FRESH_MS = 5 * 60 * 1000;
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -85,8 +86,11 @@ export class AuthGuard implements CanActivate {
     const token = parseCookies(req.headers.cookie)[name];
     const user = await this.sessions.userFor(token);
     if (!user) throw new HttpError(401, 'AUTH_REQUIRED', 'Sign in required');
-    // Cookie-authenticated writes must be JSON: a cross-site HTML form can't send that.
-    if (UNSAFE.has(req.method) && !/^application\/json\b/i.test(req.headers['content-type'] || '')) {
+    // Cookie-authenticated writes must be JSON: a cross-site HTML form can't send that. The file upload is the one
+    // exception, and only with a file type: a form can't set those either, and a cross-site fetch would need a CORS preflight.
+    const allowed = isUploadRequest(req) ? /^(application\/json|application\/pdf|image\/png|image\/jpeg)\b/i : /^application\/json\b/i;
+    if (UNSAFE.has(req.method) && !allowed.test(req.headers['content-type'] || '')) {
+      if (isUploadRequest(req)) throw new HttpError(415, 'UNSUPPORTED_FILE_TYPE', 'Upload a PDF, PNG or JPEG file');
       throw new HttpError(415, 'JSON_REQUIRED', 'Content-Type must be application/json');
     }
     return { user, sessionToken: token };

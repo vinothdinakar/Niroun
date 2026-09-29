@@ -14,6 +14,7 @@ import { BootstrapService } from './identity/bootstrap.service';
 import { EnrollmentsService } from './identity/enrollments.service';
 import { OrgsService } from './identity/orgs.service';
 import { UsersService } from './identity/users.service';
+import { VerificationDocumentsService } from './identity/verification-documents.service';
 
 /**
  * A running Bond API plus handles for programmatic use: `main.ts` starts one from the environment, and the
@@ -39,6 +40,7 @@ export interface BondApp {
     listAgents: AgentsService['list'];
     sweep: DealsService['sweep'];
     stats: ReportsService['stats'];
+    purgeDocuments: VerificationDocumentsService['purgeExpired'];
   };
   listen(port?: number): Promise<number>;
   close(): Promise<void>;
@@ -64,6 +66,7 @@ export async function createApp(
   const reports = nest.get(ReportsService);
   const enrollments = nest.get(EnrollmentsService);
   const bootstrap = nest.get(BootstrapService);
+  const documents = nest.get(VerificationDocumentsService);
 
   return {
     nest,
@@ -84,6 +87,7 @@ export async function createApp(
       listAgents: agents.list.bind(agents),
       sweep: deals.sweep.bind(deals),
       stats: reports.stats.bind(reports),
+      purgeDocuments: documents.purgeExpired.bind(documents),
     },
     async listen(port = 4100) {
       await nest.listen(port);

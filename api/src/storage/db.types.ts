@@ -123,6 +123,26 @@ export interface Outcome {
 
 export type AccountType = 'individual' | 'business';
 
+export type DocumentKind = 'incorporation' | 'id_document' | 'address_proof';
+
+/** Metadata for one evidence file (the bytes live in the FileStore under `storageKey`). Uploaded first, attached to a
+ * request when it is submitted; unattached uploads are cleaned up after a day, attached ones a retention period
+ * after the request is decided. `purgedAt` marks a file whose bytes are gone; the record stays as a paper trail. */
+export interface VerificationDocument {
+  id: string;
+  orgId: string;
+  kind: DocumentKind;
+  filename: string;
+  contentType: string;
+  size: number;
+  sha256: string;
+  storageKey: string;
+  uploadedBy: string;
+  uploadedAt: number;
+  requestId?: string;
+  purgedAt?: number;
+}
+
 /** A self-service application to move an org from its current verification level to a higher one (KYB for a
  * business, KYC for an individual). One at a time: an org can't have two pending requests. */
 export interface VerificationRequest {
@@ -132,6 +152,7 @@ export interface VerificationRequest {
   level: 1 | 2;
   status: 'pending' | 'approved' | 'rejected';
   fields: Record<string, string>;
+  documentIds: string[];
   submittedBy: string;
   submittedAt: number;
   decidedBy?: string;

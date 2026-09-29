@@ -5,6 +5,10 @@ import { HttpError } from './http-error';
 import { BondRequest } from './request';
 
 const MAX_BODY = 1_000_000;
+const MAX_UPLOAD = 5 * 1024 * 1024;
+// The one route that takes a file instead of JSON: the body is the file's bytes, the details are in the query string.
+const UPLOAD_PATH = '/v1/console/verification-documents';
+export const isUploadRequest = (req: BondRequest): boolean => req.method === 'POST' && req.originalUrl.split('?')[0] === UPLOAD_PATH;
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // This server only speaks JSON (the dashboard is its own app), so it forbids everything by default.
@@ -21,6 +25,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 //   2. who is calling (address for rate limiting)
 //   3. Origin check: a cookie-authenticated write must come from us or from the dashboard we were told to trust
 //   4. read the body once, keeping the exact text (agent signatures cover it) and parsing it as a JSON object
+//      (except an evidence upload: its bytes are kept as a Buffer, capped at 5 MB)
 @Injectable()
 export class EdgeMiddleware implements NestMiddleware {
   private readonly trustedOrigins: Set<string>;
@@ -64,12 +69,20 @@ export class EdgeMiddleware implements NestMiddleware {
       req.body = {};
       return;
     }
+    const isUpload = isUploadRequest(req);
+    const limit = isUpload ? MAX_UPLOAD : MAX_BODY;
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of req) {
       size += (chunk as Buffer).length;
-      if (size > MAX_BODY) throw new HttpError(413, 'BODY_TOO_LARGE', 'Request body too large');
+      if (size > limit) throw new HttpError(413, isUpload ? 'FILE_TOO_LARGE' : 'BODY_TOO_LARGE', isUpload ? 'Files can be at most 5 MB' : 'Request body too large');
       chunks.push(chunk as Buffer);
+    }
+    if (isUpload) {
+      req.upload = Buffer.concat(chunks);
+      req.rawBody = '';
+      req.body = {};
+      return;
     }
     const raw = Buffer.concat(chunks).toString('utf8');
     req.rawBody = raw;

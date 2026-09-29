@@ -12,6 +12,8 @@ export interface Principal {
 export interface BondRequest extends Request {
   /** The exact bytes of the body, as text. Agent signatures are checked against this, not against parsed JSON. */
   rawBody?: string;
+  /** The raw bytes of an evidence-file upload (the one route whose body is a file, not JSON). */
+  upload?: Buffer;
   /** The caller's address for rate limiting (honours X-Forwarded-For only when a proxy is trusted). */
   clientIp?: string;
   principal?: Principal;
