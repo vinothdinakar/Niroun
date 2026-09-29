@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      app:
+        description: Which app to deploy (the consoles need the API to exist already)
+        type: choice
+        options: [all, api, dashboard, admin-app, homepage]
+        default: all
 
 permissions:
   contents: read
@@ -44,27 +50,30 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-      # ---- API first: the two consoles need its URL at build time ----
-      - name: Build and push api
+      # Deploys the chosen app, or all of them: the API first, because the consoles bake its URL in at build time.
+      - name: Build and deploy
+        env:
+          APP: ${{ inputs.app || 'all' }}
+          RUNTIME_SA: ${{ vars.GCP_RUNTIME_SA }}
+          API_ENV: BOND_MONGO_DB=bond,BOND_TRUST_PROXY=1,BOND_COOKIE_SECURE=1,BOND_GCS_BUCKET=${{ vars.BOND_GCS_BUCKET }},BOND_PUBLIC_URL=${{ vars.BOND_PUBLIC_URL }},BOND_STAFF_URL=${{ vars.BOND_STAFF_URL }}
         run: |
-          docker build -f deploy/api.Dockerfile -t "$REGISTRY/api:$GITHUB_SHA" .
-          docker push "$REGISTRY/api:$GITHUB_SHA"
-      - name: Deploy api
-        id: api
-        run: |
-          gcloud run deploy bond-api --image "$REGISTRY/api:$GITHUB_SHA" --region "$REGION" \
-            --service-account "${{ vars.GCP_RUNTIME_SA }}" --allow-unauthenticated \
-            --set-env-vars "BOND_MONGO_DB=bond,BOND_TRUST_PROXY=1,BOND_COOKIE_SECURE=1,BOND_GCS_BUCKET=${{ vars.BOND_GCS_BUCKET }},BOND_PUBLIC_URL=${{ vars.BOND_PUBLIC_URL }},BOND_STAFF_URL=${{ vars.BOND_STAFF_URL }}" \
-            --set-secrets "BOND_MONGO_URL=bond-mongo-url:latest,BOND_ENCRYPTION_KEY=bond-encryption-key:latest"
-          echo "url=$(gcloud run services describe bond-api --region "$REGION" --format 'value(status.url)')" >> "$GITHUB_OUTPUT"
+          build() { docker build -f deploy/$1.Dockerfile "${@:2}" -t "$REGISTRY/$1:$GITHUB_SHA" . && docker push "$REGISTRY/$1:$GITHUB_SHA"; }
+          want() { [ "$APP" = all ] || [ "$APP" = "$1" ]; }
 
-      # ---- The two consoles and the homepage ----
-      - name: Build, push and deploy dashboard, admin-app, homepage
-        run: |
-          for app in dashboard admin-app homepage; do
-            docker build -f deploy/$app.Dockerfile --build-arg BOND_API_URL="${{ steps.api.outputs.url }}" \
-              -t "$REGISTRY/$app:$GITHUB_SHA" .
-            docker push "$REGISTRY/$app:$GITHUB_SHA"
-            gcloud run deploy "bond-$app" --image "$REGISTRY/$app:$GITHUB_SHA" --region "$REGION" \
-              --service-account "${{ vars.GCP_RUNTIME_SA }}" --allow-unauthenticated
+          if want api; then
+            build api
+            gcloud run deploy bond-api --image "$REGISTRY/api:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated               --set-env-vars "$API_ENV"               --set-secrets "BOND_MONGO_URL=bond-mongo-url:latest,BOND_ENCRYPTION_KEY=bond-encryption-key:latest"
+          fi
+
+          API_URL=$(gcloud run services describe bond-api --region "$REGION" --format 'value(status.url)' || true)
+          for app in dashboard admin-app; do
+            want $app || continue
+            [ -n "$API_URL" ] || { echo "::error::bond-api isn't deployed yet; deploy it first."; exit 1; }
+            build $app --build-arg BOND_API_URL="$API_URL"
+            gcloud run deploy "bond-$app" --image "$REGISTRY/$app:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
           done
+
+          if want homepage; then
+            build homepage
+            gcloud run deploy bond-homepage --image "$REGISTRY/homepage:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
+          fi
