@@ -50,6 +50,8 @@ export function DocumentList({ docs, accountType }: { docs: VerificationDocument
 }
 
 function Application() {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
   const { data, error, reload } = useLoaderShim(async () => {
     const [orgs, reqs] = await Promise.all([
       api<{ orgs: Org[] }>('GET', '/v1/console/orgs'),
@@ -64,11 +66,37 @@ function Application() {
   const { org, requests } = data;
   const level = org.verification || 0;
   const pending = requests.find((r) => r.status === 'pending');
-  const lastRejected = !pending ? requests.find((r) => r.status === 'rejected') : undefined;
+  const previous = !pending ? requests.find((r) => r.status === 'rejected' || r.status === 'withdrawn') : undefined;
+  const status = pending
+    ? { label: 'Pending review', color: 'amber' }
+    : level >= 2
+      ? { label: orgVerifyLabel(level, org.accountType), color: 'green' }
+      : previous?.status === 'rejected'
+        ? { label: 'Application rejected', color: 'red' }
+        : level === 1
+          ? { label: orgVerifyLabel(level, org.accountType), color: 'blue' }
+          : { label: 'Not verified', color: 'gray' };
+
+  // Editing means taking the pending application back (it leaves the staff queue); resubmitting sends a fresh one.
+  async function edit() {
+    if (!pending) return;
+    setEditing(true);
+    try {
+      await api('POST', `/v1/console/verification-requests/${pending.id}/withdraw`);
+      await reload();
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setEditing(false);
+    }
+  }
 
   return (
     <div className="tab">
       <FormPanel title="Verification">
+        <p>
+          <span className={`pill ${status.color}`}>{status.label}</span>
+        </p>
         <p className="muted">
           {org.name} is currently <b>{orgVerifyLabel(level, org.accountType)}</b>. Verifying raises your Bond
           Score and lowers the premium your agents&apos; counterparties pay to trade with them.
@@ -81,26 +109,31 @@ function Application() {
             </p>
             <ReviewList rows={VERIFY_FIELD_SPEC[org.accountType].filter((f) => pending.fields[f.key]).map((f) => [f.label, pending.fields[f.key]])} />
             <DocumentList docs={pending.documents} accountType={org.accountType} />
+            <div className="row-end">
+              <button className="btn ghost" type="button" onClick={edit} disabled={editing}>Edit and resubmit</button>
+            </div>
           </div>
         ) : level >= 2 ? (
           <p className="ver">✓ Fully verified — there&apos;s nothing further to apply for.</p>
         ) : (
-          <Wizard org={org} rejected={lastRejected} onSubmitted={reload} />
+          <Wizard org={org} previous={previous} onSubmitted={reload} />
         )}
       </FormPanel>
     </div>
   );
 }
 
-function Wizard({ org, rejected, onSubmitted }: { org: Org; rejected: VerificationRequest | undefined; onSubmitted: () => Promise<void> }) {
+function Wizard({ org, previous, onSubmitted }: { org: Org; previous: VerificationRequest | undefined; onSubmitted: () => Promise<void> }) {
   const toast = useToast();
   const spec = VERIFY_FIELD_SPEC[org.accountType];
   const availableLevels = ([1, 2] as const).filter((l) => l > (org.verification || 0));
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [level, setLevel] = useState<1 | 2>(availableLevels[0]);
-  const [fields, setFields] = useState<Record<string, string>>(() => rejected?.fields ?? {});
+  const [level, setLevel] = useState<1 | 2>(availableLevels.find((l) => l === previous?.level) ?? availableLevels[0]);
+  const [fields, setFields] = useState<Record<string, string>>(() => previous?.fields ?? {});
   const docSpec = VERIFY_DOC_SPEC[org.accountType];
-  const [docs, setDocs] = useState<Partial<Record<string, VerificationDocument>>>({});
+  const [docs, setDocs] = useState<Partial<Record<string, VerificationDocument>>>(() =>
+    Object.fromEntries((previous?.documents ?? []).filter((d) => !d.purgedAt).map((d) => [d.kind, d])),
+  );
   const [uploading, setUploading] = useState<string | null>(null);
   const [docError, setDocError] = useState('');
   const [error, setError] = useState('');
@@ -142,10 +175,13 @@ function Wizard({ org, rejected, onSubmitted }: { org: Org; rejected: Verificati
 
   return (
     <div className="manage">
-      {rejected && (
+      {previous?.status === 'rejected' && (
         <p className="notice">
-          Your last application was rejected: &ldquo;{rejected.rejectionReason}&rdquo; You can edit and resubmit below.
+          Your last application was rejected: &ldquo;{previous.rejectionReason}&rdquo; You can edit and resubmit below.
         </p>
+      )}
+      {previous?.status === 'withdrawn' && (
+        <p className="notice">Your details and documents are kept. Edit what you need and resubmit.</p>
       )}
       <div className="wizard-steps">
         <span className={step === 1 ? 'active' : ''}>1. Level</span>

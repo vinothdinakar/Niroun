@@ -29,6 +29,7 @@ describe('VerificationPage', () => {
     });
     renderWithProviders(<VerificationPage />);
     await screen.findByText('1. Level');
+    expect(screen.getByText('Not verified')).toHaveClass('pill', 'gray');
 
     fireEvent.click(screen.getByRole('radio', { name: 'Owner verified' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
@@ -73,9 +74,43 @@ describe('VerificationPage', () => {
     });
     renderWithProviders(<VerificationPage />);
     expect(await screen.findByText('Application pending review')).toBeInTheDocument();
+    expect(screen.getByText('Pending review')).toHaveClass('pill', 'amber');
     expect(screen.getByText('Acme Corporation LLC')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'cert.pdf' })).toHaveAttribute('href', '/v1/console/verification-documents/doc_1');
     expect(screen.queryByText('1. Level')).not.toBeInTheDocument();
+  });
+
+  it('lets the owner take a pending application back, then edit and resubmit it with its files kept', async () => {
+    const pendingRequest = {
+      id: 'ver_1', orgId: 'org_1', accountType: 'business', level: 1, status: 'pending',
+      fields: { legalName: 'Acme Corporation LLC', registrationNumber: 'EIN-123', address: '1 Main St' },
+      documents: [{ id: 'doc_1', orgId: 'org_1', kind: 'incorporation', filename: 'cert.pdf', contentType: 'application/pdf', size: 2048, uploadedAt: 0, requestId: 'ver_1' }],
+      submittedBy: 'usr_1', submittedAt: 0,
+    };
+    let withdrawn = false;
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['request_verification'] },
+      '/v1/console/orgs': { orgs: [org()] },
+      '/v1/console/verification-requests': (_url: string, init?: RequestInit) =>
+        init?.method === 'POST' ? {} : { requests: [withdrawn ? { ...pendingRequest, status: 'withdrawn' } : pendingRequest] },
+      '/v1/console/verification-requests/ver_1/withdraw': () => { withdrawn = true; return { ...pendingRequest, status: 'withdrawn' }; },
+    });
+    renderWithProviders(<VerificationPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit and resubmit' }));
+
+    // back in the wizard, prefilled; the certificate is still attached, so no re-upload is needed
+    await screen.findByText('1. Level');
+    expect(fetchMock).toHaveBeenCalledWith('/v1/console/verification-requests/ver_1/withdraw', expect.objectContaining({ method: 'POST' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.change(await screen.findByLabelText('Business address'), { target: { value: '2 New St' } });
+    expect(screen.getByText(/Uploaded: cert.pdf/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Review your application');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit application' }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url === '/v1/console/verification-requests' && init?.method === 'POST')).toBe(true));
+    const call = fetchMock.mock.calls.findLast(([url, init]) => url === '/v1/console/verification-requests' && init?.method === 'POST');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ level: 1, fields: { address: '2 New St', legalName: 'Acme Corporation LLC' }, documentIds: ['doc_1'] });
   });
 
   it('shows the rejection reason and lets the owner resubmit, pre-filled with what they sent before', async () => {
@@ -92,6 +127,7 @@ describe('VerificationPage', () => {
     });
     renderWithProviders(<VerificationPage />);
     await screen.findByText(/Registration number does not match records/);
+    expect(screen.getByText('Application rejected')).toHaveClass('pill', 'red');
     fireEvent.click(screen.getByRole('button', { name: 'Next' })); // step 1 -> 2
     expect(await screen.findByDisplayValue('Acme Corporation LLC')).toBeInTheDocument();
   });

@@ -143,7 +143,7 @@ export interface VerificationRequest {
   orgId: string;
   accountType: 'individual' | 'business';
   level: 1 | 2;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
   fields: Record<string, string>;
   documents: VerificationDocument[];
   submittedBy: string;

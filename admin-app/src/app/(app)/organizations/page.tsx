@@ -112,6 +112,11 @@ function Organizations() {
   );
 }
 
+const DECISION: Record<VerificationRequest['status'], { label: string; color: string }> = {
+  pending: { label: 'Pending', color: 'amber' }, approved: { label: 'Approved', color: 'green' },
+  rejected: { label: 'Rejected', color: 'red' }, withdrawn: { label: 'Withdrawn by applicant', color: 'gray' },
+};
+
 /** The review queue: pending applications need a decision; decided ones are kept below as a short history. */
 function VerificationQueue({ requests, orgs, onDecided }: { requests: VerificationRequest[]; orgs: Org[]; onDecided: () => Promise<void> }) {
   const orgName = (orgId: string) => orgs.find((o) => o.id === orgId)?.name ?? orgId;
@@ -130,7 +135,7 @@ function VerificationQueue({ requests, orgs, onDecided }: { requests: Verificati
               <tr key={r.id}>
                 <td className="name">{orgName(r.orgId)}</td>
                 <td>{orgVerifyLabel(r.level, r.accountType)}</td>
-                <td><span className={`pill ${r.status === 'approved' ? 'green' : 'red'}`}>{r.status === 'approved' ? 'Approved' : 'Rejected'}</span></td>
+                <td><span className={`pill ${DECISION[r.status].color}`}>{DECISION[r.status].label}</span></td>
                 <td className="muted">{r.rejectionReason || '—'}</td>
                 <td className="muted">{when(r.decidedAt)}</td>
               </tr>
