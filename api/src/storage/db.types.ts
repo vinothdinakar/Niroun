@@ -168,6 +168,12 @@ export interface Org {
   verification: Verification;
   createdVia: 'staff' | 'signup';
   createdBy?: string;
+  // Public-facing profile, edited by the org's own admins. All optional; an empty value clears the field.
+  about?: string;
+  website?: string;
+  contactEmail?: string;
+  country?: string;
+  industry?: string;
 }
 
 export interface TotpRecord { secretEnc: string; enabledAt: number; lastStep: number }

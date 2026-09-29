@@ -6,7 +6,23 @@ import { AuditService } from '../core/audit.service';
 import { HttpError, badRequest } from '../common/http-error';
 import { AccountType, Org, User, Verification } from '../storage/db.types';
 import { Actor } from './identity.types';
-import { can } from '../domain/roles';
+import { can, isStaff } from '../domain/roles';
+
+type ProfileField = 'about' | 'website' | 'contactEmail' | 'country' | 'industry';
+const isHttpUrl = (s: string): boolean => {
+  try {
+    return ['http:', 'https:'].includes(new URL(s).protocol);
+  } catch {
+    return false;
+  }
+};
+const PROFILE_FIELDS: Record<ProfileField, { max: number; check?: (s: string) => boolean; error?: string }> = {
+  about: { max: 500 },
+  website: { max: 200, check: isHttpUrl, error: 'website must be a full http(s) address, e.g. https://example.com' },
+  contactEmail: { max: 120, check: (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), error: 'contactEmail must be an email address' },
+  country: { max: 60 },
+  industry: { max: 80 },
+};
 
 // Customer companies. A company owns agents and has people who manage them.
 @Injectable()
@@ -55,6 +71,35 @@ export class OrgsService {
       org.verification = level as Verification;
       await this.mongo.orgs.save(org);
       await this.audit.record(actor, 'org.verify', org.id, { level });
+      return org;
+    });
+  }
+
+  /**
+   * Edits the org's public profile. Only fields present in `input` change (send an empty string to clear one), so a
+   * partial update can't wipe the rest. The org's owner admins edit their own; staff can edit any.
+   */
+  async updateProfile(actor: User, orgId: string, input: Record<string, unknown>): Promise<Org> {
+    if (!can(actor, 'org_manage')) throw new HttpError(403, 'FORBIDDEN', 'Only an organization\'s admin can edit its profile');
+    if (!isStaff(actor) && actor.orgId !== orgId) throw new HttpError(404, 'ORG_NOT_FOUND', 'Unknown organization'); // don't confirm other orgs exist
+    const changes: Partial<Record<ProfileField, string>> = {};
+    for (const [key, spec] of Object.entries(PROFILE_FIELDS) as [ProfileField, (typeof PROFILE_FIELDS)[ProfileField]][]) {
+      if (!(key in input)) continue;
+      const v = input[key];
+      if (typeof v !== 'string') throw badRequest('INVALID_PROFILE', `${key} must be text`);
+      const clean = v.trim();
+      if (clean.length > spec.max) throw badRequest('INVALID_PROFILE', `${key} must be at most ${spec.max} characters`);
+      if (clean && spec.check && !spec.check(clean)) throw badRequest('INVALID_PROFILE', spec.error!);
+      changes[key] = clean;
+    }
+    return this.mongo.transaction(async () => {
+      const org = await this.orThrow(orgId);
+      for (const [key, value] of Object.entries(changes) as [ProfileField, string][]) {
+        if (value) org[key] = value;
+        else delete org[key];
+      }
+      await this.mongo.orgs.save(org);
+      await this.audit.record(actor, 'org.profile_update', org.id, { fields: Object.keys(changes) });
       return org;
     });
   }

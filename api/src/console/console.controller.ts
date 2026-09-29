@@ -72,6 +72,13 @@ export class ConsoleController {
     return this.mongo.transaction(() => this.applyVerification(user, id, body.level));
   }
 
+  /** The org's profile (about, website, contact, country, industry). Partial: only the fields sent change. */
+  @Put('orgs/:id/profile')
+  @RequirePermission('org_manage')
+  updateOrgProfile(@CurrentUser() user: User, @Param('id') id: string, @Body() body: Json) {
+    return this.orgs.updateProfile(user, id, body);
+  }
+
   /** Corrects an org's type (e.g. signup guessed wrong, or a staff-created one needs relabelling). Doesn't touch verification. */
   @Post('orgs/:id/account-type')
   @RequirePermission('orgs')
