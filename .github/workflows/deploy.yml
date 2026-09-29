@@ -1,0 +1,70 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation: no long-lived GCP key stored in GitHub
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/bond
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm --prefix api ci
+      - run: npm --prefix homepage ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      # ---- API first: the two consoles need its URL at build time ----
+      - name: Build and push api
+        run: |
+          docker build -f deploy/api.Dockerfile -t "$REGISTRY/api:$GITHUB_SHA" .
+          docker push "$REGISTRY/api:$GITHUB_SHA"
+      - name: Deploy api
+        id: api
+        run: |
+          gcloud run deploy bond-api --image "$REGISTRY/api:$GITHUB_SHA" --region "$REGION" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" --allow-unauthenticated \
+            --set-env-vars "BOND_MONGO_DB=bond,BOND_TRUST_PROXY=1,BOND_COOKIE_SECURE=1,BOND_GCS_BUCKET=${{ vars.BOND_GCS_BUCKET }},BOND_PUBLIC_URL=${{ vars.BOND_PUBLIC_URL }},BOND_STAFF_URL=${{ vars.BOND_STAFF_URL }}" \
+            --set-secrets "BOND_MONGO_URL=bond-mongo-url:latest,BOND_ENCRYPTION_KEY=bond-encryption-key:latest"
+          echo "url=$(gcloud run services describe bond-api --region "$REGION" --format 'value(status.url)')" >> "$GITHUB_OUTPUT"
+
+      # ---- The two consoles and the homepage ----
+      - name: Build, push and deploy dashboard, admin-app, homepage
+        run: |
+          for app in dashboard admin-app homepage; do
+            docker build -f deploy/$app.Dockerfile --build-arg BOND_API_URL="${{ steps.api.outputs.url }}" \
+              -t "$REGISTRY/$app:$GITHUB_SHA" .
+            docker push "$REGISTRY/$app:$GITHUB_SHA"
+            gcloud run deploy "bond-$app" --image "$REGISTRY/$app:$GITHUB_SHA" --region "$REGION" \
+              --service-account "${{ vars.GCP_RUNTIME_SA }}" --allow-unauthenticated
+          done

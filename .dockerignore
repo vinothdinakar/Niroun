@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/dist
+**/dist-ssr
+**/data
+.git
+**/demo/demo-users.json
+**/demo/test-agent-keys.json
+**/.env*
