@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /** A small dropdown anchored under an icon button. Closes on an outside click or Escape. */
@@ -36,12 +37,7 @@ export function NotificationsMenu() {
   );
 }
 
-export function ProfileMenu({
-  name, role, orgName, mfaEnabled, onPassword, onRecovery, onSignOut,
-}: {
-  name: string; role: string; orgName: string | null; mfaEnabled: boolean;
-  onPassword: () => void; onRecovery: () => void; onSignOut: () => void;
-}) {
+export function ProfileMenu({ name, role, orgName, onSignOut }: { name: string; role: string; orgName: string | null; onSignOut: () => void }) {
   return (
     <IconMenu
       label="Account menu"
@@ -53,8 +49,7 @@ export function ProfileMenu({
             <span className="muted small">{role}{orgName ? ` · ${orgName}` : ''}</span>
           </div>
           <div className="icon-menu-divider" />
-          {mfaEnabled && <button type="button" className="icon-menu-item" onClick={onRecovery}>Recovery codes</button>}
-          <button type="button" className="icon-menu-item" onClick={onPassword}>Password</button>
+          <Link href="/account" className="icon-menu-item" role="menuitem">Account settings</Link>
           <div className="icon-menu-divider" />
           <button type="button" className="icon-menu-item" onClick={onSignOut}>Sign out</button>
         </>

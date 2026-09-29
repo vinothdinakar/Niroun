@@ -7,7 +7,6 @@ import { useFlow } from '../lib/flow';
 import { ROLE_LABEL } from '../lib/format';
 import { useSession } from '../lib/session';
 import type { Permission } from '../lib/types';
-import { PasswordDialog, RecoveryDialog } from './account-dialogs';
 import { NotificationsMenu, ProfileMenu } from './header-menus';
 
 export interface NavTab { href: string; label: string; needs?: Permission }
@@ -29,8 +28,6 @@ export function AppShell({ tabs, badge, children }: { tabs: NavTab[]; badge?: st
   const router = useRouter();
   const pathname = usePathname();
   const [live, setLive] = useState(false);
-  const [passwordOpen, setPasswordOpen] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
 
   useEffect(() => { if (status === 'out') router.replace('/login'); }, [status, router]);
   useEffect(() => { if (status === 'in') reset(); }, [status, reset]); // sign-in leftovers (challenge, codes) don't outlive sign-in
@@ -60,17 +57,12 @@ export function AppShell({ tabs, badge, children }: { tabs: NavTab[]; badge?: st
               name={u.name}
               role={ROLE_LABEL[u.role]}
               orgName={u.orgName}
-              mfaEnabled={u.mfa === 'enabled'}
-              onPassword={() => setPasswordOpen(true)}
-              onRecovery={() => setRecoveryOpen(true)}
               onSignOut={() => signOut()}
             />
           </div>
         </div>
       </header>
       <main id="main">{children}</main>
-      <PasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
-      <RecoveryDialog open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />
     </LiveContext.Provider>
   );
 }

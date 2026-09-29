@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mockApi } from '@/test/mock-api';
 import { renderWithProviders } from '@/test/render';
@@ -44,5 +44,13 @@ describe('dashboard app layout', () => {
     expect(screen.getByRole('link', { name: 'Deals' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Disputes' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Agent Marketplace' })).toBeInTheDocument();
+  });
+
+  it('puts Account settings in the profile menu', async () => {
+    mockApi({ '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer', orgId: 'org_1', orgName: 'Acme Corp' }, permissions: [] } });
+    renderWithProviders(<AppLayout><div>content</div></AppLayout>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
+    expect(screen.getByRole('menuitem', { name: 'Account settings' })).toHaveAttribute('href', '/account');
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 });
