@@ -55,7 +55,7 @@ jobs:
         env:
           APP: ${{ inputs.app || 'all' }}
           RUNTIME_SA: ${{ vars.GCP_RUNTIME_SA }}
-          API_ENV: BOND_MONGO_DB=bond,BOND_TRUST_PROXY=1,BOND_COOKIE_SECURE=1,BOND_GCS_BUCKET=${{ vars.BOND_GCS_BUCKET }},BOND_PUBLIC_URL=${{ vars.BOND_PUBLIC_URL }},BOND_STAFF_URL=${{ vars.BOND_STAFF_URL }}
+          API_ENV: BOND_MONGO_DB=Niroun,BOND_TRUST_PROXY=1,BOND_COOKIE_SECURE=1,BOND_GCS_BUCKET=${{ vars.BOND_GCS_BUCKET }},BOND_PUBLIC_URL=${{ vars.BOND_PUBLIC_URL }},BOND_STAFF_URL=${{ vars.BOND_STAFF_URL }}
         run: |
           build() { docker build -f deploy/$1.Dockerfile "${@:2}" -t "$REGISTRY/$1:$GITHUB_SHA" . && docker push "$REGISTRY/$1:$GITHUB_SHA"; }
           want() { [ "$APP" = all ] || [ "$APP" = "$1" ]; }
