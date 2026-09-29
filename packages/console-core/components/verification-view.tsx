@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { api, errorMessage } from '../lib/api';
-import { orgVerifyLabel, VERIFY_FIELD_SPEC, when } from '../lib/format';
+import { api, errorMessage, qs, uploadFile } from '../lib/api';
+import { DOC_ACCEPT, fileSize, MAX_DOC_MB, orgVerifyLabel, VERIFY_DOC_LABEL, VERIFY_DOC_SPEC, VERIFY_FIELD_SPEC, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { Org, VerificationRequest } from '../lib/types';
+import type { Org, VerificationDocument, VerificationRequest } from '../lib/types';
 import { useLoaderShim } from './use-loader-shim';
 import { FormPanel, NotAllowed } from './ui';
 
@@ -26,6 +26,26 @@ export function ReviewList({ rows }: { rows: [string, string][] }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/** The evidence attached to an application, each a private, authorised download (never a public link). */
+export function DocumentList({ docs, accountType }: { docs: VerificationDocument[]; accountType: 'individual' | 'business' }) {
+  if (!docs.length) return <p className="muted small">No documents attached.</p>;
+  return (
+    <ul className="doc-list">
+      {docs.map((d) => (
+        <li key={d.id}>
+          <span className="muted">{VERIFY_DOC_LABEL(accountType, d.kind)}: </span>
+          {d.purgedAt ? (
+            <span className="muted">{d.filename} — deleted {when(d.purgedAt)} under the retention policy</span>
+          ) : (
+            <a href={`/v1/console/verification-documents/${d.id}`}>{d.filename}</a>
+          )}
+          {!d.purgedAt && <span className="muted"> ({fileSize(d.size)})</span>}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -60,6 +80,7 @@ function Application() {
               Submitted {when(pending.submittedAt)} — applying for {orgVerifyLabel(pending.level, org.accountType)}.
             </p>
             <ReviewList rows={VERIFY_FIELD_SPEC[org.accountType].filter((f) => pending.fields[f.key]).map((f) => [f.label, pending.fields[f.key]])} />
+            <DocumentList docs={pending.documents} accountType={org.accountType} />
           </div>
         ) : level >= 2 ? (
           <p className="ver">✓ Fully verified — there&apos;s nothing further to apply for.</p>
@@ -78,16 +99,38 @@ function Wizard({ org, rejected, onSubmitted }: { org: Org; rejected: Verificati
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [level, setLevel] = useState<1 | 2>(availableLevels[0]);
   const [fields, setFields] = useState<Record<string, string>>(() => rejected?.fields ?? {});
+  const docSpec = VERIFY_DOC_SPEC[org.accountType];
+  const [docs, setDocs] = useState<Partial<Record<string, VerificationDocument>>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [docError, setDocError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (key: string) => (e: { target: { value: string } }) => setFields((s) => ({ ...s, [key]: e.target.value }));
+  const missingDoc = docSpec.some((d) => d.required && !docs[d.kind]);
+
+  // A file goes up as soon as it is chosen; the application then just names the uploaded files.
+  async function pick(kind: string, file: File | undefined) {
+    if (!file) return;
+    setDocError('');
+    if (file.size > MAX_DOC_MB * 1024 * 1024) { setDocError(`${file.name} is larger than ${MAX_DOC_MB} MB`); return; }
+    setUploading(kind);
+    try {
+      const doc = await uploadFile<VerificationDocument>(`/v1/console/verification-documents${qs({ kind, filename: file.name })}`, file);
+      setDocs((s) => ({ ...s, [kind]: doc }));
+    } catch (err) {
+      setDocError(errorMessage(err));
+    } finally {
+      setUploading(null);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      await api('POST', '/v1/console/verification-requests', { level, fields });
+      const documentIds = docSpec.flatMap((d) => (docs[d.kind] ? [docs[d.kind]!.id] : []));
+      await api('POST', '/v1/console/verification-requests', { level, fields, documentIds });
       toast('Application submitted for review');
       await onSubmitted();
     } catch (err) {
@@ -135,9 +178,25 @@ function Wizard({ org, rejected, onSubmitted }: { org: Org; rejected: Verificati
               />
             </div>
           ))}
+          <h4>Documents</h4>
+          <p className="muted small">PDF, PNG or JPEG, up to {MAX_DOC_MB} MB each. Bond staff use these to check what you entered above.</p>
+          {docSpec.map((d) => (
+            <div key={d.kind}>
+              <label htmlFor={`vd-${d.kind}`}>{d.label}{d.required ? '' : ' (optional)'}</label>
+              <input
+                id={`vd-${d.kind}`} type="file" accept={DOC_ACCEPT}
+                disabled={uploading !== null}
+                onChange={(e) => { void pick(d.kind, e.target.files?.[0]); e.target.value = ''; }}
+              />
+              <p className="muted small">
+                {uploading === d.kind ? 'Uploading…' : docs[d.kind] ? `Uploaded: ${docs[d.kind]!.filename} (${fileSize(docs[d.kind]!.size)})` : d.hint}
+              </p>
+            </div>
+          ))}
+          <p className="form-error" role="alert">{docError}</p>
           <div className="row-end">
             <button className="btn ghost" type="button" onClick={() => setStep(1)}>Back</button>
-            <button className="btn primary" type="submit">Next</button>
+            <button className="btn primary" type="submit" disabled={missingDoc || uploading !== null}>Next</button>
           </div>
         </form>
       )}
@@ -145,7 +204,7 @@ function Wizard({ org, rejected, onSubmitted }: { org: Org; rejected: Verificati
       {step === 3 && (
         <form onSubmit={submit}>
           <h4>Review your application</h4>
-          <ReviewList rows={[['Applying for', orgVerifyLabel(level, org.accountType)], ...spec.filter((f) => fields[f.key]).map((f): [string, string] => [f.label, fields[f.key]])]} />
+          <ReviewList rows={[['Applying for', orgVerifyLabel(level, org.accountType)], ...spec.filter((f) => fields[f.key]).map((f): [string, string] => [f.label, fields[f.key]]), ...docSpec.filter((d) => docs[d.kind]).map((d): [string, string] => [d.label, docs[d.kind]!.filename])]} />
           <p className="form-error" role="alert">{error}</p>
           <div className="row-end">
             <button className="btn ghost" type="button" onClick={() => setStep(2)} disabled={busy}>Back</button>

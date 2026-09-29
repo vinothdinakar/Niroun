@@ -1,6 +1,6 @@
 'use client';
 
-import { ReviewList } from '@bond/console-core/components/verification-view';
+import { DocumentList, ReviewList } from '@bond/console-core/components/verification-view';
 import { FormPanel, NotAllowed, Panel } from '@bond/console-core/components/ui';
 import { api } from '@bond/console-core/lib/api';
 import { errorMessage } from '@bond/console-core/lib/api';
@@ -166,6 +166,7 @@ function DecideRow({ request, orgName, onDecided }: { request: VerificationReque
       <h4>{orgName} — applying for {orgVerifyLabel(request.level, request.accountType)}</h4>
       <p className="muted small">Submitted {when(request.submittedAt)}</p>
       <ReviewList rows={VERIFY_FIELD_SPEC[request.accountType].filter((f) => request.fields[f.key]).map((f): [string, string] => [f.label, request.fields[f.key]])} />
+      <DocumentList docs={request.documents} accountType={request.accountType} />
       <div className="review">
         <input aria-label={`Rejection reason for ${orgName}`} placeholder="Reason (needed if rejecting)" value={reason} onChange={(e) => setReason(e.target.value)} disabled={busy} />
         <button className="btn primary sm" onClick={() => decide('approve')} disabled={busy}>Approve</button>

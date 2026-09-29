@@ -123,6 +123,21 @@ export interface Org {
   createdAt: number;
 }
 
+export type DocumentKind = 'incorporation' | 'id_document' | 'address_proof';
+
+/** An evidence file, as the API describes it (never where its bytes are stored). */
+export interface VerificationDocument {
+  id: string;
+  orgId: string;
+  kind: DocumentKind;
+  filename: string;
+  contentType: string;
+  size: number;
+  uploadedAt: number;
+  requestId?: string;
+  purgedAt?: number;
+}
+
 export interface VerificationRequest {
   id: string;
   orgId: string;
@@ -130,6 +145,7 @@ export interface VerificationRequest {
   level: 1 | 2;
   status: 'pending' | 'approved' | 'rejected';
   fields: Record<string, string>;
+  documents: VerificationDocument[];
   submittedBy: string;
   submittedAt: number;
   decidedBy?: string;

@@ -69,6 +69,10 @@ describe('OrganizationsPage', () => {
     const pendingRequest = {
       id: 'ver_1', orgId: 'org_1', accountType: 'business' as const, level: 1 as const, status: 'pending' as const,
       fields: { legalName: 'Acme Corporation LLC', registrationNumber: 'EIN-1', address: '1 Main St' },
+      documents: [
+        { id: 'doc_1', orgId: 'org_1', kind: 'incorporation' as const, filename: 'cert.pdf', contentType: 'application/pdf', size: 2048, uploadedAt: 0, requestId: 'ver_1' },
+        { id: 'doc_2', orgId: 'org_1', kind: 'address_proof' as const, filename: 'bill.png', contentType: 'image/png', size: 1024, uploadedAt: 0, requestId: 'ver_1', purgedAt: 5 },
+      ],
       submittedBy: 'usr_owner', submittedAt: 0,
     };
     const fetchMock = mockApi({
@@ -84,6 +88,9 @@ describe('OrganizationsPage', () => {
     expect(await screen.findByText('Acme Corp — applying for Owner verified')).toBeInTheDocument();
     expect(screen.getByText('Acme Corporation LLC')).toBeInTheDocument();
     expect(screen.getByText('EIN-1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'cert.pdf' })).toHaveAttribute('href', '/v1/console/verification-documents/doc_1');
+    expect(screen.getByText(/bill\.png — deleted .* under the retention policy/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'bill.png' })).not.toBeInTheDocument();
 
     // rejecting without a reason is refused client-side, before any request is sent
     await user.click(screen.getByRole('button', { name: 'Reject' }));

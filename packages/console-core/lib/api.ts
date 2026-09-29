@@ -28,6 +28,23 @@ export async function api<T = unknown>(method: 'GET' | 'POST' | 'PUT', path: str
   return json as T;
 }
 
+/** Sends one file as the raw request body (its own Content-Type), for routes that take a file rather than JSON. */
+export async function uploadFile<T = unknown>(path: string, file: File): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': file.type },
+    body: file,
+    cache: 'no-store',
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: { message?: string; code?: string } } & Record<string, unknown>;
+  if (!res.ok) {
+    if (res.status === 401) onSessionEnded?.();
+    throw new ApiError(json.error?.message || `Upload failed (${res.status})`, res.status, json.error?.code);
+  }
+  return json as T;
+}
+
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : 'Something went wrong');
 
 /** Builds a `?a=1&b=2` query string, dropping empty/undefined values. Arrays are joined with commas. */

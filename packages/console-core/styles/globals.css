@@ -74,6 +74,8 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .review-list { display: grid; grid-template-columns: auto 1fr; gap: 7px 16px; margin: 10px 0 16px; }
 .review-list dt { color: var(--muted); font-size: 12px; }
 .review-list dd { margin: 0; color: var(--text); }
+.doc-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+.doc-list a { color: var(--accent); }
 
 /* header */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }

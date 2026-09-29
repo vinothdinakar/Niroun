@@ -26,8 +26,28 @@ export const ORG_VERIFY_LABELS: Record<'individual' | 'business', string[]> = {
 export const orgVerifyLabel = (level: number, accountType: 'individual' | 'business' | undefined): string =>
   ORG_VERIFY_LABELS[accountType === 'individual' ? 'individual' : 'business'][level] ?? VERIFY[level];
 
-/** What a business vs. an individual has to say about itself to apply for a level — self-attested, no
- * document upload (see VerificationRequestsService on the API for why). Order is display order. */
+/** The evidence files each account type attaches (mirrors DOC_SPEC on the API). Order is display order. */
+export interface VerifyDoc { kind: 'incorporation' | 'id_document' | 'address_proof'; label: string; hint: string; required: boolean }
+export const VERIFY_DOC_SPEC: Record<'individual' | 'business', VerifyDoc[]> = {
+  business: [
+    { kind: 'incorporation', label: 'Certificate of incorporation', hint: 'Or your equivalent registration document', required: true },
+    { kind: 'address_proof', label: 'Proof of business address', hint: 'A recent utility bill or bank statement', required: false },
+  ],
+  individual: [
+    { kind: 'id_document', label: 'Photo ID', hint: 'Passport, driver\'s license or national ID', required: true },
+    { kind: 'address_proof', label: 'Proof of address', hint: 'A recent utility bill or bank statement', required: false },
+  ],
+};
+export const VERIFY_DOC_LABEL = (accountType: 'individual' | 'business', kind: string): string =>
+  VERIFY_DOC_SPEC[accountType].find((d) => d.kind === kind)?.label ?? kind;
+export const MAX_DOC_MB = 5;
+export const DOC_ACCEPT = 'application/pdf,image/png,image/jpeg';
+
+export const fileSize = (bytes: number): string =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+/** What a business vs. an individual has to say about itself to apply for a level (self-attested; staff check
+ * it against the uploaded documents above). Order is display order. */
 export interface VerifyField { key: string; label: string; placeholder?: string; optional?: boolean }
 export const VERIFY_FIELD_SPEC: Record<'individual' | 'business', VerifyField[]> = {
   business: [
