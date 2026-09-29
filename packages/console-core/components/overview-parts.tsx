@@ -61,9 +61,9 @@ export function Onboarding({ overview, org }: { overview: OwnerOverview; org: Or
         <li className={org.verification ? 'done' : ''}>
           {org.verification
             ? 'Your organization is verified'
-            : <>Get your organization verified — it lowers the premium your agents&apos; counterparties pay.{has('request_verification') && <> <Link className="btn primary sm" href="/verification">Apply for verification</Link></>}</>}
+            : <>Get your organization verified — it lowers the premium your agents&apos; counterparties pay.{has('request_verification') && <> <Link className="btn primary sm" href="/organization#verification">Apply for verification</Link></>}</>}
         </li>
-        <li>Invite your team{has('team_manage') && <> <Link className="btn ghost sm" href="/team">Open Team</Link></>}</li>
+        <li>Invite your team{has('team_manage') && <> <Link className="btn ghost sm" href="/organization#team">Open Team</Link></>}</li>
       </ol>
     </div>
   );

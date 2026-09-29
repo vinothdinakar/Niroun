@@ -85,6 +85,11 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .tabs a { color: var(--muted); padding: 8px 12px; border-radius: 8px; text-decoration: none; }
 .tabs a:hover { color: var(--text); }
 .tabs a[aria-current="page"] { color: var(--text); background: var(--panel-2); }
+.sub-tabs { margin-left: 0; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.sub-tabs button { all: unset; cursor: pointer; color: var(--muted); padding: 8px 12px; border-radius: 8px; }
+.sub-tabs button:hover { color: var(--text); }
+.sub-tabs button[aria-selected="true"] { color: var(--text); background: var(--panel-2); }
+.sub-tabs button:focus-visible { outline: 2px solid var(--accent); }
 .who { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
 .who b { color: var(--text); }
 .role { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; background: var(--panel-2); border: 1px solid var(--line); }
@@ -252,3 +257,4 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
 .skip:focus { left: 8px; top: 8px; z-index: 50; background: var(--panel); padding: 8px 12px; border-radius: 8px; }
 .rowbtn { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
 .rowbtn:hover { color: var(--accent); }
+

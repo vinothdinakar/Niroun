@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mockApi } from '@/test/mock-api';
 import { renderWithProviders } from '@/test/render';
-import VerificationPage from './page';
+import { VerificationView as VerificationPage } from '@bond/console-core/components/verification-view';
 
 const baseUser = {
   id: 'usr_1', email: 'ada@acme.test', name: 'Ada Owner', orgId: 'org_1', orgName: 'Acme Corp',

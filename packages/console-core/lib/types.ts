@@ -121,6 +121,11 @@ export interface Org {
   verification?: number;
   createdVia?: string;
   createdAt: number;
+  about?: string;
+  website?: string;
+  contactEmail?: string;
+  country?: string;
+  industry?: string;
 }
 
 export type DocumentKind = 'incorporation' | 'id_document' | 'address_proof';

@@ -9,8 +9,7 @@ const TABS: NavTab[] = [
   { href: '/disputes', label: 'Disputes' },
   { href: '/agents', label: 'Agent Marketplace' },
   { href: '/connect', label: 'Connect agents', needs: 'enroll' },
-  { href: '/verification', label: 'Verification', needs: 'request_verification' },
-  { href: '/team', label: 'Team', needs: 'team_manage' },
+  { href: '/organization', label: 'Organization' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

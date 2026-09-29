@@ -50,7 +50,8 @@ src/
 │   │   └── invite/          /invite#token=...  (invitation, first-run admin, reset)
 │   └── (app)/               signed-in screens, inside the header + navigation shell
 │       ├── page.tsx         Overview (live, refreshes every 3s)
-│       └── connect/ team/
+│       ├── organization/    profile, verification (KYB/KYC) and team, as tabs (#verification, #team)
+│       └── connect/
 ```
 
 Nearly every file here is a thin wrapper — `export { X as default } from '@bond/console-core/components/...'` —

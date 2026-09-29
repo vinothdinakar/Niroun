@@ -9,6 +9,13 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@bond/console-core'],
+  // The old Verification and Team pages now live inside Organization.
+  async redirects() {
+    return [
+      { source: '/verification', destination: '/organization#verification', permanent: true },
+      { source: '/team', destination: '/organization#team', permanent: true },
+    ];
+  },
   async rewrites() {
     return [{ source: '/v1/:path*', destination: `${API_URL}/v1/:path*` }];
   },

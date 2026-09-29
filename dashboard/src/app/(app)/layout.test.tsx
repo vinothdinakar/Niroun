@@ -24,25 +24,17 @@ describe('dashboard app layout', () => {
     expect(screen.queryByRole('link', { name: /Organizations/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Audit log/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Connect agents' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Team' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organization' })).toBeInTheDocument();
   });
 
-  it('hides Connect/Verification/Team for an owner_viewer, who holds none of those permissions', async () => {
+  it('hides Connect for an owner_viewer, who lacks enroll (Organization stays, for the profile)', async () => {
     mockApi({ '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer', orgId: 'org_1', orgName: 'Acme Corp' }, permissions: [] } });
     renderWithProviders(<AppLayout><div>content</div></AppLayout>);
     await screen.findByRole('link', { name: 'Overview' });
     expect(screen.queryByRole('link', { name: 'Connect agents' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organization' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Verification' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Team' })).not.toBeInTheDocument();
-  });
-
-  it('shows Verification to an owner_admin, who can apply on their org\'s behalf', async () => {
-    mockApi({
-      '/v1/auth/me': { user: { ...baseUser, role: 'owner_admin', orgId: 'org_1', orgName: 'Acme Corp' }, permissions: ['agents_manage', 'agents_suspend', 'team_manage', 'enroll', 'request_verification'] },
-    });
-    renderWithProviders(<AppLayout><div>content</div></AppLayout>);
-    await screen.findByRole('link', { name: 'Overview' });
-    expect(screen.getByRole('link', { name: 'Verification' })).toBeInTheDocument();
   });
 
   it('shows Deals, Disputes and Agent Marketplace to every role — reading is scoped, not permission-gated', async () => {
