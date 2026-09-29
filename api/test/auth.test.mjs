@@ -309,6 +309,49 @@ test('sessions: idle timeout, logout, and password change all end sessions for r
   assert.equal((await raw('POST', '/v1/auth/login', { body: { email: u.email, password: newPw } })).status, 200);
 });
 
+test('active sessions: lists every device, revokes one by id, and can sign out everywhere else', async () => {
+  const u = await w.makeUser({ role: 'owner_viewer', orgId: acme.id });
+  const a = await u.signIn();
+  const b = await u.signIn();
+
+  const listedFromA = (await a.req('GET', '/v1/auth/sessions')).body.sessions;
+  assert.equal(listedFromA.length, 2, 'both devices show up, not just this one');
+  assert.equal(listedFromA.filter((s) => s.current).length, 1, 'exactly one row is marked as this device');
+  const [mine, other] = [listedFromA.find((s) => s.current), listedFromA.find((s) => !s.current)];
+  assert.ok(mine.createdAt && mine.lastSeen, 'each row carries when it started and was last used');
+
+  // Someone else's session id can't be revoked by guessing it: ownership is checked, existence doesn't leak.
+  const stranger = await (await w.makeUser({ role: 'owner_viewer', orgId: northwind.id })).signIn();
+  assert.equal((await stranger.req('POST', `/v1/auth/sessions/${other.id}/revoke`)).status, 404);
+  assert.equal((await b.req('GET', '/v1/auth/me')).status, 200, 'untouched by the stranger\'s attempt');
+
+  // Ending another one of your own devices signs that device out, but not this one.
+  assert.equal((await a.req('POST', `/v1/auth/sessions/${other.id}/revoke`)).status, 200);
+  assert.equal((await b.req('GET', '/v1/auth/me')).status, 401);
+  assert.equal((await a.req('GET', '/v1/auth/me')).status, 200);
+  assert.equal((await a.req('POST', `/v1/auth/sessions/${other.id}/revoke`)).status, 404, 'already gone');
+
+  // Ending your own current session by id is the same as signing out: the cookie goes with it.
+  const c = await u.signIn();
+  const mineFromC = (await c.req('GET', '/v1/auth/sessions')).body.sessions.find((s) => s.current);
+  assert.equal((await c.req('POST', `/v1/auth/sessions/${mineFromC.id}/revoke`)).status, 200);
+  assert.equal((await c.req('GET', '/v1/auth/me')).status, 401);
+
+  await a.req('POST', '/v1/auth/logout'); // only `a` from the block above is still live; clear it before counting
+
+  // "Sign out everywhere else" keeps the caller signed in but ends every other device.
+  const d = await u.signIn();
+  const e = await u.signIn();
+  const f = await u.signIn();
+  const revokeAll = await d.req('POST', '/v1/auth/sessions/revoke-all');
+  assert.equal(revokeAll.status, 200);
+  assert.equal(revokeAll.body.revoked, 2, 'e and f, not d itself');
+  assert.equal((await d.req('GET', '/v1/auth/me')).status, 200, 'the caller stays signed in');
+  assert.equal((await e.req('GET', '/v1/auth/me')).status, 401);
+  assert.equal((await f.req('GET', '/v1/auth/me')).status, 401);
+  assert.equal((await d.req('GET', '/v1/auth/sessions')).body.sessions.length, 1);
+});
+
 test('CSRF: cross-origin and non-JSON writes with a session cookie are refused', async () => {
   const s = await (await w.makeUser({ role: 'admin' })).signIn();
   const host = new URL(w.baseUrl).host;

@@ -197,7 +197,7 @@ export interface User {
   termsAcceptedAt?: number;
 }
 
-export interface Session { userId: string; createdAt: number; lastSeen: number; mfa: boolean }
+export interface Session { userId: string; createdAt: number; lastSeen: number; mfa: boolean; ip: string; userAgent: string | null }
 
 export interface Enrollment {
   orgId: string;

@@ -9,7 +9,7 @@ import { dummyHash, hashPassword, validatePassword, verifyPassword } from '../do
 import { isStaff } from '../domain/roles';
 import { SignInStep } from './identity.types';
 import { MfaService } from './mfa.service';
-import { SessionsService } from './sessions.service';
+import { SessionMeta, SessionsService } from './sessions.service';
 import { UsersService } from './users.service';
 
 const EMAIL_MAX_FAILS = 5;
@@ -29,7 +29,7 @@ export class AuthService {
     private readonly mfa: MfaService,
   ) {}
 
-  async login(email: unknown, password: unknown, ip = 'unknown', remember = true): Promise<SignInStep> {
+  async login(email: unknown, password: unknown, ip = 'unknown', remember = true, meta: SessionMeta = {}): Promise<SignInStep> {
     const key = String(email ?? '').trim().toLowerCase();
     if (this.rate.isLocked(`e:${key}`, EMAIL_MAX_FAILS) || this.rate.isLocked(`i:${ip}`, IP_MAX_FAILS)) {
       throw new HttpError(429, 'TOO_MANY_ATTEMPTS', 'Too many failed attempts. Try again in 15 minutes.');
@@ -45,13 +45,13 @@ export class AuthService {
     }
     this.rate.clear(`e:${key}`);
     await this.audit.record(user, 'login.password_ok', user.id);
-    return this.afterPassword(user, remember);
+    return this.afterPassword(user, remember, { ip, ...meta });
   }
 
   /** The person chose their password from an invitation link; staff still must set up two-factor before getting a session. */
-  async acceptInvite(token: unknown, password: unknown): Promise<SignInStep> {
+  async acceptInvite(token: unknown, password: unknown, meta: SessionMeta = {}): Promise<SignInStep> {
     const user = await this.users.acceptInvite(token, password);
-    return this.afterPassword(user, true);
+    return this.afterPassword(user, true, meta);
   }
 
   // The password is correct. Who still needs a second factor?
@@ -59,13 +59,14 @@ export class AuthService {
   //   - staff not yet enrolled: must enrol now (they can't skip it)
   //   - everyone else: signed in
   // `remember` decides whether the eventual session cookie survives closing the browser; it just rides along
-  // through the challenge for anyone who still has a second factor to clear.
-  private async afterPassword(user: User, remember: boolean): Promise<SignInStep> {
-    if (user.totp?.enabledAt) return { needs: 'totp', challenge: this.mfa.newChallenge(user, 'totp', remember) };
-    if (isStaff(user)) return { needs: 'enroll', challenge: this.mfa.newChallenge(user, 'enroll', remember) };
+  // through the challenge for anyone who still has a second factor to clear. `meta` (IP, user agent) rides
+  // along the same way, so it still describes this sign-in once the session is finally created.
+  private async afterPassword(user: User, remember: boolean, meta: SessionMeta = {}): Promise<SignInStep> {
+    if (user.totp?.enabledAt) return { needs: 'totp', challenge: this.mfa.newChallenge(user, 'totp', remember, meta) };
+    if (isStaff(user)) return { needs: 'enroll', challenge: this.mfa.newChallenge(user, 'enroll', remember, meta) };
     await this.mongo.users.updateOne({ _id: user.id as never }, { $set: { lastLoginAt: this.clock.now() } });
     await this.audit.record(user, 'login.success', user.id);
-    return this.sessions.start({ ...user, lastLoginAt: this.clock.now() }, false);
+    return this.sessions.start({ ...user, lastLoginAt: this.clock.now() }, false, meta);
   }
 
   async logout(token: string | undefined): Promise<void> {

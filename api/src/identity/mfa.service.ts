@@ -9,7 +9,7 @@ import { HttpError, badRequest } from '../common/http-error';
 import { TotpRecord, User } from '../storage/db.types';
 import { sha256 } from '../domain/canonical';
 import { newRecoveryCode, newSecret, normalizeRecovery, open, otpauthUri, seal, verifyTotp } from '../domain/totp';
-import { SessionsService } from './sessions.service';
+import { SessionMeta, SessionsService } from './sessions.service';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const CHALLENGE_MAX_ATTEMPTS = 5;
@@ -17,7 +17,7 @@ const ACCOUNT_MAX_FAILS = 5;
 const RECOVERY_CODE_COUNT = 10;
 
 type Purpose = 'totp' | 'enroll';
-interface Challenge { userId: string; purpose: Purpose; exp: number; attempts: number; remember: boolean }
+interface Challenge { userId: string; purpose: Purpose; exp: number; attempts: number; remember: boolean; meta: SessionMeta }
 
 // Two-factor: authenticator-app codes (TOTP), one-time recovery codes, and first-time enrolment.
 // A password alone never yields a session for anyone enrolled, or for any staff account.
@@ -39,11 +39,11 @@ export class MfaService {
   ) {}
 
   /** Issues a short-lived, single-purpose token that proves the password step. It unlocks nothing but the next step. */
-  newChallenge(user: User, purpose: Purpose, remember = true): string {
+  newChallenge(user: User, purpose: Purpose, remember = true, meta: SessionMeta = {}): string {
     const token = randomBytes(24).toString('base64url');
     const now = this.clock.now();
     for (const [h, c] of this.challenges) if (c.exp < now) this.challenges.delete(h);
-    this.challenges.set(sha256(token), { userId: user.id, purpose, exp: now + CHALLENGE_TTL_MS, attempts: 0, remember });
+    this.challenges.set(sha256(token), { userId: user.id, purpose, exp: now + CHALLENGE_TTL_MS, attempts: 0, remember, meta });
     return token;
   }
 
@@ -103,7 +103,7 @@ export class MfaService {
     await this.mongo.users.updateOne({ _id: user.id as never }, { $set: { lastLoginAt: now } });
     await this.audit.record(user, 'login.success', user.id, { mfa: usedRecovery ? 'recovery' : 'totp' });
     // reload: the atomic updates above changed the stored user, and the response must describe the current one
-    return { ...(await this.sessions.start(await this.current(user), true)), usedRecovery, recoveryCodesLeft: left, remember: c.remember };
+    return { ...(await this.sessions.start(await this.current(user), true, c.meta)), usedRecovery, recoveryCodesLeft: left, remember: c.remember };
   }
 
   /** Enrolment step 1: generate a secret to put into an authenticator app. Nothing is active until step 2 proves it works. */
@@ -133,7 +133,7 @@ export class MfaService {
     this.rate.clear(`t:${user.id}`);
     await this.audit.record(user, '2fa.enrolled', user.id);
     await this.audit.record(user, 'login.success', user.id, { mfa: 'enrolled' });
-    return { ...(await this.sessions.start(await this.current(user), true)), recoveryCodes: codes, remember: c.remember };
+    return { ...(await this.sessions.start(await this.current(user), true, c.meta)), recoveryCodes: codes, remember: c.remember };
   }
 
   /** The stored user as it is now (after this request's atomic updates). */

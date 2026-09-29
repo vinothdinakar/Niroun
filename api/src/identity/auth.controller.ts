@@ -1,14 +1,16 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Put, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Access, ClientIp, CurrentUser, SessionToken } from '../common/decorators';
 import { SESSION_COOKIE, STAFF_SESSION_COOKIE, appHint, parseCookies, sessionCookie, sessionCookieName } from '../common/cookies';
+import { HttpError } from '../common/http-error';
 import { BondRequest } from '../common/request';
 import { BOND_OPTIONS, BondOptions } from '../config/options';
 import { User } from '../storage/db.types';
+import { sha256 } from '../domain/canonical';
 import { permissionsOf } from '../domain/roles';
 import { AuthService } from './auth.service';
 import { MfaService } from './mfa.service';
-import { SESSION_MAX_MS } from './sessions.service';
+import { SESSION_MAX_MS, SessionMeta, SessionsService } from './sessions.service';
 import { SignInStep, isSession } from './identity.types';
 import { UsersService } from './users.service';
 
@@ -22,12 +24,19 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly mfa: MfaService,
     private readonly users: UsersService,
+    private readonly sessions: SessionsService,
     @Inject(BOND_OPTIONS) private readonly options: BondOptions,
   ) {}
 
   private cookie(res: Response, req: BondRequest, token: string, maxAgeSec: number, persistent = true): void {
     const name = sessionCookieName(appHint(req.headers['x-bond-app'] as string | undefined));
     res.setHeader('Set-Cookie', sessionCookie(name, token, maxAgeSec, this.options.cookieSecure, persistent));
+  }
+
+  /** Best-effort "what device/browser is this" for the active-sessions list — never trusted for anything security-sensitive. */
+  private meta(req: BondRequest, ip: string): SessionMeta {
+    const ua = req.headers['user-agent'];
+    return { ip, userAgent: (Array.isArray(ua) ? ua[0] : ua) ?? null };
   }
 
   private async signedIn(res: Response, req: BondRequest, session: { token: string; user: User }, extra: Json = {}, remember = true): Promise<Json> {
@@ -43,14 +52,14 @@ export class AuthController {
   @Access('public')
   @HttpCode(200)
   async login(@Body() body: Json, @ClientIp() ip: string, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
-    return this.step(res, req, await this.auth.login(body.email, body.password, ip, !!body.remember), !!body.remember);
+    return this.step(res, req, await this.auth.login(body.email, body.password, ip, !!body.remember, this.meta(req, ip)), !!body.remember);
   }
 
   @Post('accept-invite')
   @Access('public')
   @HttpCode(200)
-  async acceptInvite(@Body() body: Json, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
-    return this.step(res, req, await this.auth.acceptInvite(body.token, body.password));
+  async acceptInvite(@Body() body: Json, @ClientIp() ip: string, @Req() req: BondRequest, @Res({ passthrough: true }) res: Response): Promise<Json> {
+    return this.step(res, req, await this.auth.acceptInvite(body.token, body.password, this.meta(req, ip)));
   }
 
   @Post('logout')
@@ -86,6 +95,37 @@ export class AuthController {
   async changePassword(@CurrentUser() user: User, @SessionToken() token: string, @Body() body: Json): Promise<Json> {
     await this.auth.changePassword(user, body.current, body.next, token);
     return { ok: true };
+  }
+
+  // ---- active sessions ----
+  @Get('sessions')
+  @Access('user')
+  async listSessions(@CurrentUser() user: User, @SessionToken() token: string): Promise<Json> {
+    return { sessions: await this.sessions.list(user.id, token) };
+  }
+
+  @Post('sessions/:id/revoke')
+  @Access('user')
+  @HttpCode(200)
+  async revokeSession(
+    @CurrentUser() user: User, @SessionToken() token: string, @Param('id') id: string,
+    @Req() req: BondRequest, @Res({ passthrough: true }) res: Response,
+  ): Promise<Json> {
+    const wasCurrent = token !== undefined && sha256(token) === id;
+    if (!(await this.sessions.revoke(user.id, id))) throw new HttpError(404, 'SESSION_NOT_FOUND', 'Unknown session');
+    // Ending your own current session is the same as signing out: the cookie must go with it.
+    if (wasCurrent) {
+      const name = sessionCookieName(appHint(req.headers['x-bond-app'] as string | undefined));
+      res.setHeader('Set-Cookie', sessionCookie(name, '', 0, this.options.cookieSecure));
+    }
+    return { ok: true };
+  }
+
+  @Post('sessions/revoke-all')
+  @Access('user')
+  @HttpCode(200)
+  async revokeOtherSessions(@CurrentUser() user: User, @SessionToken() token: string): Promise<Json> {
+    return { revoked: await this.sessions.revokeAll(user.id, token) };
   }
 
   // ---- two-factor ----
