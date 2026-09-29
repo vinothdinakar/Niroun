@@ -22,7 +22,7 @@ concurrency:
 
 env:
   REGION: ${{ vars.GCP_REGION }}
-  REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/bond
+  REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/niroun
 
 jobs:
   test:
@@ -62,18 +62,18 @@ jobs:
 
           if want api; then
             build api
-            gcloud run deploy bond-api --image "$REGISTRY/api:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated               --set-env-vars "$API_ENV"               --set-secrets "BOND_MONGO_URL=bond-mongo-url:latest,BOND_ENCRYPTION_KEY=bond-encryption-key:latest"
+            gcloud run deploy niroun-api --image "$REGISTRY/api:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated               --set-env-vars "$API_ENV"               --set-secrets "BOND_MONGO_URL=niroun-mongo-url:latest,BOND_ENCRYPTION_KEY=niroun-encryption-key:latest"
           fi
 
-          API_URL=$(gcloud run services describe bond-api --region "$REGION" --format 'value(status.url)' || true)
+          API_URL=$(gcloud run services describe niroun-api --region "$REGION" --format 'value(status.url)' || true)
           for app in dashboard admin-app; do
             want $app || continue
-            [ -n "$API_URL" ] || { echo "::error::bond-api isn't deployed yet; deploy it first."; exit 1; }
+            [ -n "$API_URL" ] || { echo "::error::niroun-api isn't deployed yet; deploy it first."; exit 1; }
             build $app --build-arg BOND_API_URL="$API_URL"
-            gcloud run deploy "bond-$app" --image "$REGISTRY/$app:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
+            gcloud run deploy "niroun-$app" --image "$REGISTRY/$app:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
           done
 
           if want homepage; then
             build homepage
-            gcloud run deploy bond-homepage --image "$REGISTRY/homepage:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
+            gcloud run deploy niroun-homepage --image "$REGISTRY/homepage:$GITHUB_SHA" --region "$REGION"               --service-account "$RUNTIME_SA" --allow-unauthenticated
           fi

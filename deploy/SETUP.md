@@ -1,7 +1,7 @@
 # Deploying Bond to Google Cloud
 
 `.github/workflows/deploy.yml` tests every push and, on `main`, deploys four Cloud Run services
-(`bond-api`, `bond-dashboard`, `bond-admin-app`, `bond-homepage`). Do this setup once.
+(`niroun-api`, `niroun-dashboard`, `niroun-admin-app`, `niroun-homepage`). Do this setup once.
 
 Replace the values in the first block, then run the rest in a shell with `gcloud` signed in as a project owner.
 
@@ -9,7 +9,7 @@ Replace the values in the first block, then run the rest in a shell with `gcloud
 export PROJECT_ID=your-project-id
 export REGION=us-central1
 export GITHUB_REPO=vinothdinakar/Niroun     # owner/name
-export BUCKET=$PROJECT_ID-bond-docs
+export BUCKET=$PROJECT_ID-niroun-docs
 
 gcloud config set project $PROJECT_ID
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
@@ -17,14 +17,14 @@ export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(pro
 # 1. APIs, image repository, document bucket
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com \
   iamcredentials.googleapis.com
-gcloud artifacts repositories create bond --repository-format=docker --location=$REGION
+gcloud artifacts repositories create niroun --repository-format=docker --location=$REGION
 gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access
 
 # 2. Service accounts: one for GitHub to deploy with, one for the running services
-gcloud iam service-accounts create bond-deploy
-gcloud iam service-accounts create bond-runtime
-DEPLOY_SA=bond-deploy@$PROJECT_ID.iam.gserviceaccount.com
-RUNTIME_SA=bond-runtime@$PROJECT_ID.iam.gserviceaccount.com
+gcloud iam service-accounts create niroun-deploy
+gcloud iam service-accounts create niroun-runtime
+DEPLOY_SA=niroun-deploy@$PROJECT_ID.iam.gserviceaccount.com
+RUNTIME_SA=niroun-runtime@$PROJECT_ID.iam.gserviceaccount.com
 
 for role in roles/run.admin roles/artifactregistry.writer; do
   gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$DEPLOY_SA --role=$role
@@ -36,10 +36,10 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
 
 # 3. Secrets. Use a MongoDB Atlas connection string (Cloud Run can't host MongoDB).
 #    Allow Atlas to accept connections from Cloud Run (0.0.0.0/0 or a static egress IP).
-printf '%s' 'mongodb+srv://USER:PASS@cluster.mongodb.net/' | gcloud secrets create bond-mongo-url --data-file=-
+printf '%s' 'mongodb+srv://USER:PASS@cluster.mongodb.net/' | gcloud secrets create niroun-mongo-url --data-file=-
 # BOND_ENCRYPTION_KEY: check api/src for the required format; this assumes 32 random bytes, base64.
-openssl rand -base64 32 | tr -d '\n' | gcloud secrets create bond-encryption-key --data-file=-
-for s in bond-mongo-url bond-encryption-key; do
+openssl rand -base64 32 | tr -d '\n' | gcloud secrets create niroun-encryption-key --data-file=-
+for s in niroun-mongo-url niroun-encryption-key; do
   gcloud secrets add-iam-policy-binding $s --member=serviceAccount:$RUNTIME_SA \
     --role=roles/secretmanager.secretAccessor
 done
