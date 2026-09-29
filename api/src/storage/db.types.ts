@@ -150,7 +150,7 @@ export interface VerificationRequest {
   orgId: string;
   accountType: AccountType;
   level: 1 | 2;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
   fields: Record<string, string>;
   documentIds: string[];
   submittedBy: string;

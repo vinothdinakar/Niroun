@@ -74,6 +74,22 @@ export class VerificationRequestsService {
     });
   }
 
+  /** The applicant takes a pending application back to edit it. Its files stay attached to it until the next application claims them. */
+  async withdraw(user: User, id: string): Promise<VerificationRequestView> {
+    if (!can(user, 'request_verification')) throw new HttpError(403, 'FORBIDDEN', 'Only an organization\'s own admin can withdraw a verification request');
+    return this.mongo.transaction(async () => {
+      const req = await this.col.get(id);
+      if (!req || req.orgId !== user.orgId) throw notFound('REQUEST_NOT_FOUND', `Unknown verification request ${id}`);
+      if (req.status !== 'pending') throw new HttpError(409, 'NOT_PENDING', 'Only a pending request can be withdrawn');
+      req.status = 'withdrawn';
+      req.decidedBy = user.id;
+      req.decidedAt = this.clock.now();
+      await this.col.save(req);
+      await this.audit.record(user, 'verification.withdraw', req.id, { orgId: req.orgId, level: req.level });
+      return (await this.withDocuments([req]))[0];
+    });
+  }
+
   /** `scope.all` (staff): every request, newest first. Otherwise: one org's own history. */
   async list(scope: Scope): Promise<VerificationRequestView[]> {
     const filter = scope.all ? {} : { orgId: scope.orgId };

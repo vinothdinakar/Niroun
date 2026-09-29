@@ -6,7 +6,7 @@ import { newId } from '../storage/ids';
 import { ClockService } from '../core/clock.service';
 import { AuditService } from '../core/audit.service';
 import { HttpError, badRequest, notFound } from '../common/http-error';
-import { AccountType, DocumentKind, User, VerificationDocument } from '../storage/db.types';
+import { AccountType, DocumentKind, User, VerificationDocument, VerificationRequest } from '../storage/db.types';
 import { can } from '../domain/roles';
 import { OrgsService } from './orgs.service';
 
@@ -110,9 +110,18 @@ export class VerificationDocumentsService implements OnModuleInit, OnModuleDestr
     if (new Set(ids).size !== ids.length) throw badRequest('DUPLICATE_DOCUMENT', 'A document was listed twice');
     const docs = await this.col.getMany(ids);
     if (docs.length !== ids.length) throw badRequest('UNKNOWN_DOCUMENT', 'One of the documents does not exist');
+    // A file already on a rejected or withdrawn application can move to the next one (edit and resubmit); one on a
+    // pending or approved application cannot.
+    const previous = new Map<string, VerificationRequest>();
     for (const d of docs) {
       if (d.orgId !== orgId) throw badRequest('UNKNOWN_DOCUMENT', 'One of the documents does not exist'); // same answer: don't reveal other orgs' ids
-      if (d.requestId || d.purgedAt) throw badRequest('DOCUMENT_UNAVAILABLE', `${d.filename} was already used or has been removed; upload it again`);
+      const unavailable = () => badRequest('DOCUMENT_UNAVAILABLE', `${d.filename} was already used or has been removed; upload it again`);
+      if (d.purgedAt) throw unavailable();
+      if (d.requestId) {
+        const old = await this.mongo.verificationRequests.get(d.requestId);
+        if (!old || (old.status !== 'rejected' && old.status !== 'withdrawn')) throw unavailable();
+        previous.set(old.id, old);
+      }
     }
     const kinds = docs.map((d) => d.kind);
     if (new Set(kinds).size !== kinds.length) throw badRequest('DUPLICATE_DOCUMENT_KIND', 'Attach at most one document of each kind');
@@ -122,6 +131,11 @@ export class VerificationDocumentsService implements OnModuleInit, OnModuleDestr
     for (const d of docs) {
       d.requestId = requestId;
       await this.col.save(d);
+    }
+    // the file now belongs to the new application only, so the old one's retention clock can't delete it early
+    for (const old of previous.values()) {
+      old.documentIds = old.documentIds.filter((id) => !ids.includes(id));
+      await this.mongo.verificationRequests.save(old);
     }
     return ids;
   }

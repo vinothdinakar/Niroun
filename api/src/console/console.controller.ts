@@ -115,6 +115,14 @@ export class ConsoleController {
     return this.verificationRequests.list(scope).then((requests) => ({ requests }));
   }
 
+  /** The applicant takes a pending application back to edit and resubmit it. */
+  @Post('verification-requests/:id/withdraw')
+  @RequirePermission('request_verification')
+  @HttpCode(200)
+  withdrawVerificationRequest(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.verificationRequests.withdraw(user, id);
+  }
+
   /** Approving also sets the org's verification level (and cascades to its agents); rejecting just records why. */
   @Post('verification-requests/:id/decide')
   @RequirePermission('verify')

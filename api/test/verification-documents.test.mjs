@@ -103,13 +103,55 @@ test('an application needs its required evidence, and only files of its own org 
   assert.deepEqual(ok.body.documents.map((d) => d.kind), ['incorporation', 'address_proof']);
 });
 
-test('an attached file cannot be reused by a later application', async () => {
+test('a file on a pending application cannot be reused', async () => {
+  const { org, session } = await ownerFor();
+  const { up } = await apply(session);
+  const again = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields, documentIds: [up.body.id] });
+  assert.equal(again.status, 409, 'one pending application at a time');
+  assert.equal(await w.app.mongo.verificationRequests.count({ orgId: org.id, status: 'pending' }), 1);
+});
+
+test('a rejected application\'s files carry over to the resubmission', async () => {
   const { session } = await ownerFor();
   const { up, r } = await apply(session);
-  const adminSession = await w.adminUser.signIn();
-  await adminSession.req('POST', `/v1/console/verification-requests/${r.body.id}/decide`, { decision: 'reject', reason: 'blurry' });
-  const again = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields, documentIds: [up.body.id] });
-  assert.equal(again.body.error.code, 'DOCUMENT_UNAVAILABLE');
+  await (await w.adminUser.signIn()).req('POST', `/v1/console/verification-requests/${r.body.id}/decide`, { decision: 'reject', reason: 'typo in the number' });
+  const again = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: { ...fields, registrationNumber: 'EIN-654321' }, documentIds: [up.body.id] });
+  assert.equal(again.status, 201);
+  assert.deepEqual(again.body.documents.map((d) => d.id), [up.body.id]);
+  const all = await session.req('GET', '/v1/console/verification-requests');
+  assert.deepEqual(all.body.requests.find((x) => x.id === r.body.id).documents, [], 'the file now belongs to the new application only');
+});
+
+test('withdrawing a pending application lets the owner edit it, keeping the evidence', async () => {
+  const { org, session } = await ownerFor();
+  const { up, r } = await apply(session);
+
+  const viewer = await w.makeUser({ role: 'owner_viewer', orgId: org.id });
+  assert.equal((await (await viewer.signIn()).req('POST', `/v1/console/verification-requests/${r.body.id}/withdraw`)).status, 403);
+  const { session: stranger } = await ownerFor();
+  assert.equal((await stranger.req('POST', `/v1/console/verification-requests/${r.body.id}/withdraw`)).status, 404);
+
+  const out = await session.req('POST', `/v1/console/verification-requests/${r.body.id}/withdraw`);
+  assert.equal(out.status, 200);
+  assert.equal(out.body.status, 'withdrawn');
+  assert.equal((await session.req('POST', `/v1/console/verification-requests/${r.body.id}/withdraw`)).status, 409, 'only while pending');
+  const decide = await (await w.adminUser.signIn()).req('POST', `/v1/console/verification-requests/${r.body.id}/decide`, { decision: 'approve' });
+  assert.equal(decide.status, 409, 'staff cannot approve a withdrawn application');
+
+  const again = await session.req('POST', '/v1/console/verification-requests', { level: 1, fields: { ...fields, address: '2 New St' }, documentIds: [up.body.id] });
+  assert.equal(again.status, 201);
+  assert.equal(again.body.fields.address, '2 New St');
+});
+
+test('a withdrawn application\'s files are purged like any decided one if never resubmitted', async () => {
+  w.clock.advance(100 * DAY);
+  await w.app.engine.purgeDocuments();
+  const { org, session } = await ownerFor();
+  const { up, r } = await apply(session);
+  await session.req('POST', `/v1/console/verification-requests/${r.body.id}/withdraw`);
+  w.clock.advance(91 * DAY);
+  assert.equal(await w.app.engine.purgeDocuments(), 1);
+  assert.equal(store().files.has(`verification/${org.id}/${up.body.id}`), false);
 });
 
 test('staff can download the evidence (and it is audited); the uploading org can too; nobody else can', async () => {
