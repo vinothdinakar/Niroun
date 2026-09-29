@@ -6,7 +6,7 @@
 Replace the values in the first block, then run the rest in a shell with `gcloud` signed in as a project owner.
 
 ```bash
-export PROJECT_ID=your-project-id
+export PROJECT_ID=niroun-dev
 export REGION=us-central1
 export GITHUB_REPO=vinothdinakar/Niroun     # owner/name
 export BUCKET=$PROJECT_ID-niroun-docs
