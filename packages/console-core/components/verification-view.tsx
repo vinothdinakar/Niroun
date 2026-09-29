@@ -30,8 +30,8 @@ export function ReviewList({ rows }: { rows: [string, string][] }) {
 }
 
 /** The evidence attached to an application, each a private, authorised download (never a public link). */
-export function DocumentList({ docs, accountType }: { docs: VerificationDocument[]; accountType: 'individual' | 'business' }) {
-  if (!docs.length) return <p className="muted small">No documents attached.</p>;
+export function DocumentList({ docs, accountType }: { docs: VerificationDocument[] | undefined; accountType: 'individual' | 'business' }) {
+  if (!docs?.length) return <p className="muted small">No documents attached.</p>;
   return (
     <ul className="doc-list">
       {docs.map((d) => (
