@@ -9,6 +9,7 @@ import { User } from '../storage/db.types';
 import { sha256 } from '../domain/canonical';
 import { permissionsOf } from '../domain/roles';
 import { AuthService } from './auth.service';
+import { ContactVerificationService } from './contact-verification.service';
 import { MfaService } from './mfa.service';
 import { SESSION_MAX_MS, SessionMeta, SessionsService } from './sessions.service';
 import { SignInStep, isSession } from './identity.types';
@@ -25,6 +26,7 @@ export class AuthController {
     private readonly mfa: MfaService,
     private readonly users: UsersService,
     private readonly sessions: SessionsService,
+    private readonly contact: ContactVerificationService,
     @Inject(BOND_OPTIONS) private readonly options: BondOptions,
   ) {}
 
@@ -86,7 +88,7 @@ export class AuthController {
   @Put('me')
   @Access('user')
   async updateMe(@CurrentUser() user: User, @Body() body: Json): Promise<Json> {
-    return { user: await this.users.rename(user, body.name), permissions: permissionsOf(user.role) };
+    return { user: await this.users.updateProfile(user, body), permissions: permissionsOf(user.role) };
   }
 
   @Post('change-password')
@@ -126,6 +128,46 @@ export class AuthController {
   @HttpCode(200)
   async revokeOtherSessions(@CurrentUser() user: User, @SessionToken() token: string): Promise<Json> {
     return { revoked: await this.sessions.revokeAll(user.id, token) };
+  }
+
+  // ---- contact verification (proving you hold the email/phone on file, not identity verification) ----
+  @Post('email/verify/send')
+  @Access('user')
+  @HttpCode(200)
+  async sendEmailVerification(@CurrentUser() user: User, @Req() req: BondRequest): Promise<Json> {
+    await this.contact.sendEmailVerification(user, appHint(req.headers['x-bond-app'] as string | undefined));
+    return { ok: true };
+  }
+
+  // Public: the link may be opened in a browser with no session (a different device, or none at all).
+  // The one-time token itself is the proof, the same trust model as accepting an invite.
+  @Post('email/verify/confirm')
+  @Access('public')
+  @HttpCode(200)
+  async confirmEmailVerification(@Body() body: Json): Promise<Json> {
+    return this.contact.confirmEmailVerification(body.token);
+  }
+
+  @Put('phone')
+  @Access('user')
+  @HttpCode(200)
+  async setPhone(@CurrentUser() user: User, @Body() body: Json): Promise<Json> {
+    return { user: await this.contact.setPhone(user, body.phone) };
+  }
+
+  @Post('phone/verify/send')
+  @Access('user')
+  @HttpCode(200)
+  async sendPhoneVerification(@CurrentUser() user: User): Promise<Json> {
+    await this.contact.sendPhoneCode(user);
+    return { ok: true };
+  }
+
+  @Post('phone/verify/confirm')
+  @Access('user')
+  @HttpCode(200)
+  async confirmPhoneVerification(@CurrentUser() user: User, @Body() body: Json): Promise<Json> {
+    return { user: await this.contact.confirmPhoneCode(user, body.code) };
   }
 
   // ---- two-factor ----

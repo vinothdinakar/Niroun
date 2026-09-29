@@ -102,18 +102,23 @@ function ProfileSection({ me }: { me: Me }) {
   const toast = useToast();
   const u = me.user;
   const [name, setName] = useState(u.name);
+  const [legalFirstName, setLegalFirstName] = useState(u.legalFirstName ?? '');
+  const [legalLastName, setLegalLastName] = useState(u.legalLastName ?? '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const dirty = name.trim() !== u.name || legalFirstName.trim() !== (u.legalFirstName ?? '') || legalLastName.trim() !== (u.legalLastName ?? '');
 
   async function save(e: FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      const next = await api<Me>('PUT', '/v1/auth/me', { name });
+      const next = await api<Me>('PUT', '/v1/auth/me', { name, legalFirstName, legalLastName });
       signedIn(next);
       setName(next.user.name);
-      toast('Name saved');
+      setLegalFirstName(next.user.legalFirstName ?? '');
+      setLegalLastName(next.user.legalLastName ?? '');
+      toast('Profile saved');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -127,14 +132,159 @@ function ProfileSection({ me }: { me: Me }) {
       <p className="muted small">How your name appears to your team.</p>
       <form onSubmit={save}>
         <label htmlFor="acct-name">Name</label>
-        <div className="inline-field">
-          <input id="acct-name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="btn primary" type="submit" disabled={busy || !name.trim() || name.trim() === u.name}>Save</button>
+        <input id="acct-name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="two">
+          <div>
+            <label htmlFor="acct-legal-first">Legal first name</label>
+            <input id="acct-legal-first" maxLength={80} placeholder="Optional" value={legalFirstName} onChange={(e) => setLegalFirstName(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="acct-legal-last">Legal last name</label>
+            <input id="acct-legal-last" maxLength={80} placeholder="Optional" value={legalLastName} onChange={(e) => setLegalLastName(e.target.value)} />
+          </div>
         </div>
+        <p className="muted small">Your legal name as it appears on official documents. Used for verification and compliance — not shown to your team.</p>
         <p className="form-error" role="alert">{error}</p>
+        <div className="row-end">
+          <button className="btn primary" type="submit" disabled={busy || !name.trim() || !dirty}>Save</button>
+        </div>
       </form>
       <p className="muted small">{FIXED_NOTE[u.role]}</p>
+
+      <EmailSection me={me} />
+      <PhoneSection me={me} />
     </>
+  );
+}
+
+function EmailSection({ me }: { me: Me }) {
+  const toast = useToast();
+  const u = me.user;
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function sendLink() {
+    setBusy(true);
+    try {
+      await api('POST', '/v1/auth/email/verify/send', {});
+      setSent(true);
+      toast(`Verification link sent to ${u.email}`);
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="setting first">
+      <div>
+        <b>Email {u.emailVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>}</b>
+        <p className="muted small">{u.email}</p>
+        {!u.emailVerified && sent && <p className="muted small">Check your inbox — the link works once and expires in 24 hours.</p>}
+      </div>
+      {!u.emailVerified && (
+        <button className="btn ghost" type="button" disabled={busy} onClick={() => void sendLink()}>
+          {busy ? 'Sending…' : sent ? 'Resend link' : 'Verify email'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PhoneSection({ me }: { me: Me }) {
+  const { signedIn } = useSession();
+  const toast = useToast();
+  const u = me.user;
+  const [phone, setPhone] = useState(u.phone ?? '');
+  const [code, setCode] = useState('');
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const dirty = phone.trim() !== (u.phone ?? '');
+
+  const apply = (next: Me['user']) => signedIn({ ...me, user: next });
+
+  async function savePhone(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const r = await api<{ user: Me['user'] }>('PUT', '/v1/auth/phone', { phone: phone.trim() });
+      apply(r.user);
+      setPhone(r.user.phone ?? '');
+      setAwaitingCode(false);
+      toast('Phone number saved');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendCode() {
+    setError('');
+    setBusy(true);
+    try {
+      await api('POST', '/v1/auth/phone/verify/send', {});
+      setAwaitingCode(true);
+      toast(`Code sent to ${u.phone}`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCode(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const r = await api<{ user: Me['user'] }>('POST', '/v1/auth/phone/verify/confirm', { code });
+      apply(r.user);
+      setAwaitingCode(false);
+      setCode('');
+      toast('Phone number verified');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="setting">
+      <div>
+        <b>Phone {u.phone && (u.phoneVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>)}</b>
+        <form className="inline-field" onSubmit={dirty ? savePhone : (e) => e.preventDefault()}>
+          <input
+            aria-label="Phone number" placeholder="+14155550123" value={phone}
+            onChange={(e) => { setPhone(e.target.value); setAwaitingCode(false); }}
+          />
+          {dirty ? (
+            // Two "Save" buttons can be on screen at once (this one and the profile form's); name this
+            // one after what it saves so assistive tech — and tests — can tell them apart.
+            <button className="btn ghost sm" type="submit" aria-label="Save phone number" disabled={busy}>Save</button>
+          ) : (
+            u.phone && !u.phoneVerified && !awaitingCode && (
+              <button className="btn ghost sm" type="button" disabled={busy} onClick={() => void sendCode()}>Send code</button>
+            )
+          )}
+        </form>
+        {awaitingCode && (
+          <form className="inline-field" onSubmit={confirmCode}>
+            <input
+              aria-label="Verification code" inputMode="numeric" maxLength={6} placeholder="6-digit code"
+              value={code} onChange={(e) => setCode(e.target.value)}
+            />
+            <button className="btn primary sm" type="submit" disabled={busy || code.trim().length !== 6}>Confirm</button>
+            <button className="btn ghost sm" type="button" disabled={busy} onClick={() => void sendCode()}>Resend</button>
+          </form>
+        )}
+        <p className="form-error" role="alert">{error}</p>
+      </div>
+    </div>
   );
 }
 

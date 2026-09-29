@@ -3,10 +3,15 @@ import { Access } from './common/decorators';
 import { HttpError } from './common/http-error';
 import { BOND_OPTIONS, BondOptions } from './config/options';
 import { MailerService, SentMail } from './core/mailer.service';
+import { SentSms, SmsService } from './core/sms.service';
 
 @Controller()
 export class HealthController {
-  constructor(private readonly mailer: MailerService, @Inject(BOND_OPTIONS) private readonly options: BondOptions) {}
+  constructor(
+    private readonly mailer: MailerService,
+    private readonly sms: SmsService,
+    @Inject(BOND_OPTIONS) private readonly options: BondOptions,
+  ) {}
 
   @Get()
   @Access('public')
@@ -26,5 +31,13 @@ export class HealthController {
   outbox(): { emails: SentMail[] } {
     if (!this.options.devMailbox) throw new HttpError(404, 'NOT_FOUND', 'Not found');
     return { emails: [...this.mailer.outbox].reverse() };
+  }
+
+  /** Same idea as the mail outbox, for phone verification codes. */
+  @Get('v1/dev/sms-outbox')
+  @Access('public')
+  smsOutbox(): { texts: SentSms[] } {
+    if (!this.options.devMailbox) throw new HttpError(404, 'NOT_FOUND', 'Not found');
+    return { texts: [...this.sms.outbox].reverse() };
   }
 }

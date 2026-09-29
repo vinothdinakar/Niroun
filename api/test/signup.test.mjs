@@ -65,6 +65,7 @@ test('happy path: nothing exists until the email link is used, then a company an
   assert.equal(s.user.role, 'owner_admin');
   assert.equal(s.user.orgName, form.company);
   assert.equal(s.user.mfa, 'off');
+  assert.equal(s.user.emailVerified, true, 'clicking this link already proved the email; no separate step needed');
   assert.equal((await s.req('GET', '/v1/stats')).status, 403, 'a new customer sees nothing of Bond internals');
 
   const org = (await w.app.accounts.listOrgs()).find((o) => o.name === form.company);

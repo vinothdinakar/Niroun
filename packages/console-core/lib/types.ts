@@ -7,6 +7,9 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  /** Self-attested legal name, separate from the display `name` above — for verification/compliance, not shown to a team. */
+  legalFirstName: string | null;
+  legalLastName: string | null;
   role: Role;
   orgId: string | null;
   orgName: string | null;
@@ -16,6 +19,10 @@ export interface User {
   pendingInvite: boolean;
   mfa: 'enabled' | 'required' | 'off';
   recoveryCodesLeft: number | null;
+  /** Whether this account has proved it controls its own email/phone — not identity verification (see Org.verification). */
+  emailVerified: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
 }
 
 export interface Me { user: User; permissions: Permission[] }

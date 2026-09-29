@@ -23,7 +23,30 @@ test('a person can change their own display name, and only that', async () => {
   assert.equal((await session.req('PUT', '/v1/auth/me', { name: 42 })).status, 400);
 
   const audit = await w.admin('GET', '/v1/console/audit');
-  assert.ok(JSON.stringify(audit).includes('user.rename'));
+  assert.ok(JSON.stringify(audit).includes('user.profile_update'));
+});
+
+test('a person can set and clear their own legal first/last name, alongside their display name', async () => {
+  const org = await w.app.accounts.createOrg('Legal Name Co', null, 'business');
+  const user = await w.makeUser({ role: 'owner_admin', orgId: org.id });
+  const session = await user.signIn();
+
+  assert.equal((await session.req('GET', '/v1/auth/me')).body.user.legalFirstName, null, 'unset by default');
+
+  const put = await session.req('PUT', '/v1/auth/me', { name: user.user.name, legalFirstName: ' Grace ', legalLastName: ' Hopper ' });
+  assert.equal(put.status, 200);
+  assert.equal(put.body.user.legalFirstName, 'Grace', 'trimmed');
+  assert.equal(put.body.user.legalLastName, 'Hopper');
+  assert.equal((await session.req('GET', '/v1/auth/me')).body.user.legalFirstName, 'Grace', 'persisted');
+
+  // An empty string clears it back out; a field left out of the body is untouched.
+  const cleared = await session.req('PUT', '/v1/auth/me', { name: user.user.name, legalFirstName: '' });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.body.user.legalFirstName, null);
+  assert.equal(cleared.body.user.legalLastName, 'Hopper', 'legalLastName was not in this body, so it was left alone');
+
+  assert.equal((await session.req('PUT', '/v1/auth/me', { name: user.user.name, legalFirstName: 'x'.repeat(81) })).status, 400);
+  assert.equal((await session.req('PUT', '/v1/auth/me', { name: user.user.name, legalFirstName: 42 })).status, 400);
 });
 
 test('signed-out callers cannot rename anyone', async () => {

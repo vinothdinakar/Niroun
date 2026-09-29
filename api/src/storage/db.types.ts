@@ -182,6 +182,10 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  // The name on official documents, as distinct from the display `name` above — self-attested, used for
+  // verification/compliance rather than shown to a team. Optional and independently settable.
+  legalFirstName: string | null;
+  legalLastName: string | null;
   role: Role;
   orgId: string | null;
   passwordHash: string | null;
@@ -195,6 +199,15 @@ export interface User {
   recovery: string[];
   termsVersion?: string;
   termsAcceptedAt?: number;
+  // Proof the account holder controls their own email/phone (not identity verification — see
+  // verification-requests.service.ts for an organization's KYB/KYC). A pending request stores only a hash.
+  emailVerifiedAt: number | null;
+  emailVerifyHash: string | null;
+  emailVerifyExpires: number | null;
+  phone: string | null;
+  phoneVerifiedAt: number | null;
+  phoneCodeHash: string | null;
+  phoneCodeExpires: number | null;
 }
 
 export interface Session { userId: string; createdAt: number; lastSeen: number; mfa: boolean; ip: string; userAgent: string | null }

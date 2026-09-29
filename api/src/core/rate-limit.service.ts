@@ -31,8 +31,8 @@ export class RateLimitService {
     this.fails.delete(key);
   }
 
-  // ---- attempt counters (signups): throws 429 once `max` attempts land inside the window ----
-  hit(key: string, max: number, windowMs = 60 * 60_000): void {
+  // ---- attempt counters (signups, resending a verification email/code): throws 429 once `max` land inside the window ----
+  hit(key: string, max: number, windowMs = 60 * 60_000, code = 'TOO_MANY_SIGNUPS', message = 'Too many attempts. Please try again later.'): void {
     const now = this.clock.now();
     if (this.hits.size > 5000) for (const [k, r] of this.hits) if (now - r.first >= windowMs) this.hits.delete(k);
     const r = this.hits.get(key);
@@ -40,7 +40,7 @@ export class RateLimitService {
       this.hits.set(key, { count: 1, first: now });
       return;
     }
-    if (r.count >= max) throw new HttpError(429, 'TOO_MANY_SIGNUPS', 'Too many attempts. Please try again later.');
+    if (r.count >= max) throw new HttpError(429, code, message);
     r.count++;
   }
 }

@@ -30,6 +30,9 @@ export interface BondOptions {
   devMailbox: boolean;
   /** The dashboard's public URL, used in emailed links. Defaults to http://localhost:<port> once listening. */
   publicUrl: string | undefined;
+  /** The staff admin app's URL, used in links emailed to staff accounts (their own email verification).
+   * Falls back to `publicUrl` when unset, which is fine for a single-server dev/test setup. */
+  staffUrl: string | undefined;
   /** How often to run the expiry sweep, in ms. 0 disables it (tests call it explicitly). */
   sweepIntervalMs: number;
   /** Where KYB/KYC evidence files are kept (Google Cloud Storage in production). */
@@ -54,6 +57,7 @@ export function resolveOptions(partial: Partial<BondOptions> & { keyFile?: strin
     signup: partial.signup ?? 'closed',
     devMailbox: partial.devMailbox ?? false,
     publicUrl: partial.publicUrl ?? process.env.BOND_PUBLIC_URL,
+    staffUrl: partial.staffUrl ?? process.env.BOND_STAFF_URL,
     sweepIntervalMs: partial.sweepIntervalMs ?? 0,
     fileStore: partial.fileStore ?? new MemoryFileStore(),
     docRetentionDays: partial.docRetentionDays ?? 90,

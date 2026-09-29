@@ -5,8 +5,10 @@ import { renderWithProviders } from '@/test/render';
 import AccountPage from './page';
 
 const user = (over: Record<string, unknown> = {}) => ({
-  id: 'usr_1', email: 'ada@acme.test', name: 'Ada Owner', role: 'owner_admin', orgId: 'org_1', orgName: 'Acme Corp',
-  disabled: false, createdAt: 0, lastLoginAt: 0, pendingInvite: false, mfa: 'off', recoveryCodesLeft: null, ...over,
+  id: 'usr_1', email: 'ada@acme.test', name: 'Ada Owner', legalFirstName: null, legalLastName: null,
+  role: 'owner_admin', orgId: 'org_1', orgName: 'Acme Corp',
+  disabled: false, createdAt: 0, lastLoginAt: 0, pendingInvite: false, mfa: 'off', recoveryCodesLeft: null,
+  emailVerified: false, phone: null, phoneVerified: false, ...over,
 });
 
 afterEach(() => { window.location.hash = ''; });
@@ -16,7 +18,7 @@ describe('AccountPage', () => {
     mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
     renderWithProviders(<AccountPage />);
     expect(await screen.findByLabelText('Name')).toHaveValue('Ada Owner');
-    expect(screen.getByText('ada@acme.test')).toBeInTheDocument();
+    expect(screen.getAllByText('ada@acme.test').length).toBeGreaterThan(0); // once in the hero, once in the Email row
     expect(screen.getByText('AO')).toBeInTheDocument();
     expect(screen.getByText('Owner admin')).toHaveClass('pill');
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions']);
@@ -65,22 +67,75 @@ describe('AccountPage', () => {
     expect(screen.queryByText('Recovery codes')).not.toBeInTheDocument();
   });
 
-  it('saves a new display name through PUT /v1/auth/me and shows it', async () => {
+  it('saves a new display name (and legal name) through PUT /v1/auth/me and shows it', async () => {
     const fetchMock = mockApi({
       '/v1/auth/me': (_url: string, init?: RequestInit) =>
-        init?.method === 'PUT' ? { user: user({ name: 'Ada L.' }), permissions: [] } : { user: user(), permissions: [] },
+        init?.method === 'PUT'
+          ? { user: user({ name: 'Ada L.', legalFirstName: 'Ada', legalLastName: 'Lovelace' }), permissions: [] }
+          : { user: user(), permissions: [] },
     });
     renderWithProviders(<AccountPage />);
     const input = await screen.findByLabelText('Name');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     fireEvent.change(input, { target: { value: 'Ada L.' } });
+    fireEvent.change(screen.getByLabelText('Legal first name'), { target: { value: 'Ada' } });
+    fireEvent.change(screen.getByLabelText('Legal last name'), { target: { value: 'Lovelace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
       const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
-      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ name: 'Ada L.' });
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ name: 'Ada L.', legalFirstName: 'Ada', legalLastName: 'Lovelace' });
     });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
     expect(screen.getByLabelText('Name')).toHaveValue('Ada L.');
+    expect(screen.getByLabelText('Legal last name')).toHaveValue('Lovelace');
+  });
+
+  it('shows email verification status and sends a link when not verified', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/email/verify/send': { ok: true },
+    });
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByText('Not verified')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u) === '/v1/auth/email/verify/send')).toBe(true));
+    expect(await screen.findByText(/link works once and expires in 24 hours/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Resend link' })).toBeInTheDocument();
+  });
+
+  it('shows the email as verified with no action needed', async () => {
+    mockApi({ '/v1/auth/me': { user: user({ emailVerified: true }), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByText('Verified')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Verify email' })).not.toBeInTheDocument();
+  });
+
+  it('adds a phone number, sends a code, and confirms it', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/phone': { user: user({ phone: '+14155550123' }) },
+      '/v1/auth/phone/verify/send': { ok: true },
+      '/v1/auth/phone/verify/confirm': { user: user({ phone: '+14155550123', phoneVerified: true }) },
+    });
+    renderWithProviders(<AccountPage />);
+    const phoneInput = await screen.findByLabelText('Phone number');
+    fireEvent.change(phoneInput, { target: { value: '+14155550123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save phone number' }));
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([u]) => String(u) === '/v1/auth/phone');
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ phone: '+14155550123' });
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u) === '/v1/auth/phone/verify/send')).toBe(true));
+
+    fireEvent.change(await screen.findByLabelText('Verification code'), { target: { value: '042917' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => {
+      const confirm = fetchMock.mock.calls.find(([u]) => String(u) === '/v1/auth/phone/verify/confirm');
+      expect(JSON.parse(String(confirm?.[1]?.body))).toEqual({ code: '042917' });
+    });
+    expect(await screen.findByText('Verified')).toBeInTheDocument();
   });
 
   it('lists other signed-in devices with a Sign out button, and marks this one', async () => {

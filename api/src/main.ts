@@ -24,6 +24,7 @@ async function main(): Promise<void> {
       signup: process.env.BOND_SIGNUP === 'open' ? 'open' : 'closed', // closed unless you explicitly open it
       devMailbox: process.env.BOND_DEV_MAILBOX === '1',
       publicUrl: dashboardUrl,
+      staffUrl,
       allowedOrigins: (process.env.BOND_ALLOWED_ORIGINS || `${dashboardUrl},${staffUrl}`).split(',').map((s) => s.trim()).filter(Boolean),
       trustProxy: process.env.BOND_TRUST_PROXY === '1',
       sweepIntervalMs: 60_000,

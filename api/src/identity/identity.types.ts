@@ -7,6 +7,8 @@ export interface PublicUser {
   id: string;
   email: string;
   name: string;
+  legalFirstName: string | null;
+  legalLastName: string | null;
   role: Role;
   orgId: string | null;
   orgName: string | null;
@@ -17,6 +19,9 @@ export interface PublicUser {
   /** enabled: has an authenticator | required: staff who must enrol at next sign-in | off: optional and not set up */
   mfa: 'enabled' | 'required' | 'off';
   recoveryCodesLeft: number | null;
+  emailVerified: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
 }
 
 /** Sign-in either finishes with a session, or names the step still needed (no session, no cookie yet). */

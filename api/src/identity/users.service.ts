@@ -40,22 +40,37 @@ export class UsersService {
   async publicUser(u: User, orgNames?: Map<string, string>): Promise<PublicUser> {
     const orgName = u.orgId ? orgNames?.get(u.orgId) ?? (await this.mongo.orgs.get(u.orgId))?.name ?? null : null;
     return {
-      id: u.id, email: u.email, name: u.name, role: u.role, orgId: u.orgId, orgName,
+      id: u.id, email: u.email, name: u.name, legalFirstName: u.legalFirstName ?? null, legalLastName: u.legalLastName ?? null,
+      role: u.role, orgId: u.orgId, orgName,
       disabled: u.disabled, createdAt: u.createdAt, lastLoginAt: u.lastLoginAt, pendingInvite: !u.passwordHash,
       mfa: u.totp?.enabledAt ? 'enabled' : isStaff(u) ? 'required' : 'off',
       recoveryCodesLeft: u.totp?.enabledAt ? u.recovery.length : null,
+      emailVerified: !!u.emailVerifiedAt, phone: u.phone ?? null, phoneVerified: !!u.phoneVerifiedAt,
     };
   }
 
-  /** People change their own display name; email, role and organisation are set by whoever invited them. */
-  async rename(user: User, name: unknown): Promise<PublicUser> {
-    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) throw badRequest('INVALID_NAME', 'Name must be 1-80 characters');
-    const clean = name.trim();
-    await this.mongo.transaction(async () => {
-      await this.mongo.users.updateOne({ _id: user.id as never }, { $set: { name: clean } });
-      await this.audit.record(user, 'user.rename', user.id, { name: clean });
+  /**
+   * People edit their own profile: display name (required), and their legal first/last name (optional,
+   * self-attested; an empty value clears it). Email, role and organisation are set by whoever invited them.
+   */
+  async updateProfile(user: User, input: Record<string, unknown>): Promise<PublicUser> {
+    if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 80) throw badRequest('INVALID_NAME', 'Name must be 1-80 characters');
+    const changes: { name: string; legalFirstName?: string | null; legalLastName?: string | null } = { name: input.name.trim() };
+    for (const key of ['legalFirstName', 'legalLastName'] as const) {
+      if (!(key in input)) continue;
+      const v = input[key];
+      if (typeof v !== 'string') throw badRequest('INVALID_PROFILE', `${key} must be text`);
+      const clean = v.trim();
+      if (clean.length > 80) throw badRequest('INVALID_PROFILE', `${key} must be at most 80 characters`);
+      changes[key] = clean || null;
+    }
+    return this.mongo.transaction(async () => {
+      const fresh = ((await this.mongo.users.get(user.id)) as User) ?? user;
+      Object.assign(fresh, changes);
+      await this.mongo.users.save(fresh);
+      await this.audit.record(user, 'user.profile_update', user.id, changes);
+      return this.publicUser(fresh);
     });
-    return this.publicUser({ ...user, name: clean });
   }
 
   /** Validates and stores a new user. With no password hash the user gets an invitation link to set their own. */
@@ -71,11 +86,15 @@ export class UsersService {
     if (await this.findByEmail(email)) throw new HttpError(409, 'USER_EXISTS', 'A user with that email already exists');
 
     const user: User = {
-      id: newId('usr'), email, name: input.name.trim(), role, orgId, passwordHash: input.passwordHash ?? null, disabled: false,
+      id: newId('usr'), email, name: input.name.trim(), legalFirstName: null, legalLastName: null,
+      role, orgId, passwordHash: input.passwordHash ?? null, disabled: false,
       createdAt: this.clock.now(), lastLoginAt: null, inviteHash: null, inviteExpires: null,
       totp: null, // set once an authenticator app is confirmed
       totpPending: null, // generated during enrolment, not yet proven
       recovery: [], // sha256 of unused recovery codes
+      // Not proven yet: signup sets emailVerifiedAt itself once its own link is clicked (see SignupService.verify).
+      emailVerifiedAt: null, emailVerifyHash: null, emailVerifyExpires: null,
+      phone: null, phoneVerifiedAt: null, phoneCodeHash: null, phoneCodeExpires: null,
     };
     const inviteToken = user.passwordHash ? null : this.issueInvite(user);
     return this.mongo.transaction(async () => {

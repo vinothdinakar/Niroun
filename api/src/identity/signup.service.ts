@@ -148,6 +148,9 @@ export class SignupService {
       const { user } = await this.users.insert({ email: rec.email, name: rec.name, role: 'owner_admin', orgId: org.id, passwordHash: rec.passwordHash }, null);
       user.termsVersion = rec.termsVersion;
       user.termsAcceptedAt = rec.termsAcceptedAt;
+      // This link was emailed to rec.email and only just clicked: that already proves the address, so there's
+      // no separate email-verification step to make this account's owner go through afterwards.
+      user.emailVerifiedAt = this.clock.now();
       org.createdBy = user.id;
       await this.mongo.users.save(user);
       await this.mongo.orgs.save(org);

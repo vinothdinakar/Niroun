@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { BondOptions, resolveOptions } from './config/options';
 import { MailerService } from './core/mailer.service';
+import { SmsService } from './core/sms.service';
 import { MongoService } from './storage/mongo.service';
 import { AgentsService } from './agents/agents.service';
 import { DealsService } from './deals/deals.service';
@@ -27,6 +28,7 @@ export interface BondApp {
   options: BondOptions;
   mongo: MongoService;
   mailer: MailerService;
+  sms: SmsService;
   accounts: {
     createUser: UsersService['createUser'];
     findByEmail: UsersService['findByEmail'];
@@ -74,6 +76,7 @@ export async function createApp(
     options,
     mongo: nest.get(MongoService),
     mailer: nest.get(MailerService),
+    sms: nest.get(SmsService),
     accounts: {
       createUser: users.createUser.bind(users),
       findByEmail: users.findByEmail.bind(users),
