@@ -87,6 +87,13 @@ function Account({ me }: { me: Me }) {
   );
 }
 
+const FIXED_NOTE: Record<Me['user']['role'], string> = {
+  owner_admin: 'Your email and role are fixed for this account. Your organization\'s details are on the Organization page.',
+  owner_viewer: 'Your email, role and organization (shown above) are set by your organization\'s admins. Ask one of them to change them.',
+  admin: 'Your email and role are managed by another staff admin.',
+  reviewer: 'Your email and role are managed by a staff admin.',
+};
+
 function ProfileSection({ me }: { me: Me }) {
   const { signedIn } = useSession();
   const toast = useToast();
@@ -123,7 +130,7 @@ function ProfileSection({ me }: { me: Me }) {
         </div>
         <p className="form-error" role="alert">{error}</p>
       </form>
-      <p className="muted small">Your email, role and organization (shown above) are set by whoever invited you. Ask an admin to change them.</p>
+      <p className="muted small">{FIXED_NOTE[u.role]}</p>
     </>
   );
 }

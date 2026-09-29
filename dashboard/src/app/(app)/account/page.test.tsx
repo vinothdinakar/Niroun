@@ -23,6 +23,21 @@ describe('AccountPage', () => {
     expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('does not tell an org owner that someone invited them', async () => {
+    mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    await screen.findByLabelText('Name');
+    expect(screen.queryByText(/whoever invited you/)).not.toBeInTheDocument();
+    expect(screen.getByText(/email and role are fixed/)).toBeInTheDocument();
+  });
+
+  it('tells a viewer to ask their organization\'s admins', async () => {
+    mockApi({ '/v1/auth/me': { user: user({ role: 'owner_viewer' }), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    await screen.findByLabelText('Name');
+    expect(screen.getByText(/Ask one of them/)).toBeInTheDocument();
+  });
+
   it('shows the selected section on the right and keeps the choice in the address', async () => {
     mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
     renderWithProviders(<AccountPage />);
