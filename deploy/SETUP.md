@@ -81,3 +81,8 @@ until the services do. So:
   restrict it before real use.
 - The first `main` push after setup is the real test of the Docker builds; watch that run.
 - Custom domains: map them in Cloud Run, then update `BOND_PUBLIC_URL` / `BOND_STAFF_URL`.
+
+## Deploying one app at a time
+
+GitHub > Actions > CI/CD > Run workflow, then pick `api`, `dashboard`, `admin-app` or `homepage` (or `all`).
+Deploy `api` first; the consoles need it to exist. Pushes to `main` deploy `all`.
