@@ -9,16 +9,18 @@ Replace the values in the first block, then run the rest in a shell with `gcloud
 export PROJECT_ID=niroun-dev
 export REGION=us-central1
 export GITHUB_REPO=vinothdinakar/Niroun     # owner/name
-export BUCKET=$PROJECT_ID-niroun-docs
+export BUCKET=niroun-dev-docs
 
 gcloud config set project $PROJECT_ID
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 
-# 1. APIs, image repository, document bucket
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com \
-  iamcredentials.googleapis.com
-gcloud artifacts repositories create niroun --repository-format=docker --location=$REGION
-gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access
+# 1. APIs, image repository, document bucket: ALREADY DONE in the console for niroun-dev
+#    (Cloud Run, Artifact Registry, Secret Manager and IAM Credentials APIs; Docker repo "niroun" and
+#    bucket gs://niroun-dev-docs, both in us-central1). Only needed again for a fresh project:
+#   gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com \
+#     iamcredentials.googleapis.com
+#   gcloud artifacts repositories create niroun --repository-format=docker --location=$REGION
+#   gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access
 
 # 2. Service accounts: one for GitHub to deploy with, one for the running services
 gcloud iam service-accounts create niroun-deploy
