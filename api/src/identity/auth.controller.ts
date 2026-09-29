@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Put, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Access, ClientIp, CurrentUser, SessionToken } from '../common/decorators';
 import { SESSION_COOKIE, STAFF_SESSION_COOKIE, appHint, parseCookies, sessionCookie, sessionCookieName } from '../common/cookies';
@@ -72,6 +72,12 @@ export class AuthController {
   @Access('user')
   async me(@CurrentUser() user: User): Promise<Json> {
     return { user: await this.users.publicUser(user), permissions: permissionsOf(user.role) };
+  }
+
+  @Put('me')
+  @Access('user')
+  async updateMe(@CurrentUser() user: User, @Body() body: Json): Promise<Json> {
+    return { user: await this.users.rename(user, body.name), permissions: permissionsOf(user.role) };
   }
 
   @Post('change-password')

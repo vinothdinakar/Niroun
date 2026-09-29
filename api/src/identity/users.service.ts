@@ -47,6 +47,17 @@ export class UsersService {
     };
   }
 
+  /** People change their own display name; email, role and organisation are set by whoever invited them. */
+  async rename(user: User, name: unknown): Promise<PublicUser> {
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) throw badRequest('INVALID_NAME', 'Name must be 1-80 characters');
+    const clean = name.trim();
+    await this.mongo.transaction(async () => {
+      await this.mongo.users.updateOne({ _id: user.id as never }, { $set: { name: clean } });
+      await this.audit.record(user, 'user.rename', user.id, { name: clean });
+    });
+    return this.publicUser({ ...user, name: clean });
+  }
+
   /** Validates and stores a new user. With no password hash the user gets an invitation link to set their own. */
   async insert(input: NewUser, actor: Actor): Promise<{ user: User; inviteToken: string | null }> {
     const email = String(input.email ?? '').trim().toLowerCase();
