@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { createApp } from './bootstrap';
+import { DiskFileStore, openGcsBucket } from './storage/file-store';
 
 // Starts the API from environment variables. See api/README.md for the full list.
 async function main(): Promise<void> {
@@ -9,8 +10,15 @@ async function main(): Promise<void> {
   // both proxy /v1/* writes through to this API with a session cookie.
   const dashboardUrl = process.env.BOND_PUBLIC_URL || 'http://localhost:3300';
   const staffUrl = process.env.BOND_STAFF_URL || 'http://localhost:3400';
+  // KYB/KYC evidence: a private Google Cloud Storage bucket in production. Without one, dev falls back to a local folder.
+  const bucket = process.env.BOND_GCS_BUCKET;
+  if (!bucket) console.warn('BOND_GCS_BUCKET is not set: verification documents are stored in ./data/uploads (development only).');
+  const fileStore = bucket ? await openGcsBucket(bucket) : new DiskFileStore(join(__dirname, '..', 'data', 'uploads'));
+
   const app = await createApp(
     {
+      fileStore,
+      docRetentionDays: Number(process.env.BOND_DOC_RETENTION_DAYS) || 90,
       // mongoUrl / mongoDb come from BOND_MONGO_URL / BOND_MONGO_DB (see config/options.ts)
       keyFile: process.env.BOND_KEY_FILE || join(__dirname, '..', 'data', 'encryption.key'),
       signup: process.env.BOND_SIGNUP === 'open' ? 'open' : 'closed', // closed unless you explicitly open it

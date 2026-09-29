@@ -1,4 +1,5 @@
 import { loadEncryptionKey } from '../domain/totp';
+import { FileStore, MemoryFileStore } from '../storage/file-store';
 
 export const BOND_OPTIONS = Symbol('BOND_OPTIONS');
 
@@ -31,6 +32,10 @@ export interface BondOptions {
   publicUrl: string | undefined;
   /** How often to run the expiry sweep, in ms. 0 disables it (tests call it explicitly). */
   sweepIntervalMs: number;
+  /** Where KYB/KYC evidence files are kept (Google Cloud Storage in production). */
+  fileStore: FileStore;
+  /** Evidence files are deleted this many days after their verification request is decided. */
+  docRetentionDays: number;
 }
 
 export const DEFAULT_MONGO_URL = 'mongodb://127.0.0.1:27018/?replicaSet=bond0';
@@ -50,5 +55,7 @@ export function resolveOptions(partial: Partial<BondOptions> & { keyFile?: strin
     devMailbox: partial.devMailbox ?? false,
     publicUrl: partial.publicUrl ?? process.env.BOND_PUBLIC_URL,
     sweepIntervalMs: partial.sweepIntervalMs ?? 0,
+    fileStore: partial.fileStore ?? new MemoryFileStore(),
+    docRetentionDays: partial.docRetentionDays ?? 90,
   };
 }
