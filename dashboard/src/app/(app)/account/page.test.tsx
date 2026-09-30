@@ -20,7 +20,7 @@ describe('AccountPage', () => {
     expect(await screen.findByLabelText('Name')).toHaveValue('Ada Owner');
     expect(screen.getAllByText('ada@acme.test').length).toBeGreaterThan(0); // once in the hero, once in the Email row
     expect(screen.getByText('AO')).toBeInTheDocument();
-    expect(screen.getByText('Owner admin')).toHaveClass('pill');
+    expect(screen.getByText('Organization owner')).toHaveClass('pill');
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions']);
     expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
   });

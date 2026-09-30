@@ -18,7 +18,9 @@ const valid = (over = {}) => {
   return { email: `pat${n}@widgets${n}.test`, password: 'Pt-' + randomBytes(12).toString('base64url'), acceptTerms: true, ...over };
 };
 // Signup asks only for an email and a password; the org starts with a placeholder name taken from the email.
-const orgNameOf = (form) => `${form.email.trim().toLowerCase().split('@')[0]}'s organization`;
+const firstNameOf = (email) => { const w = email.trim().split('@')[0].split(/[._+-]+/).find(Boolean); return w[0].toUpperCase() + w.slice(1); };
+const today = () => new Date(w.clock.now()).toISOString().slice(0, 10);
+const orgNameOf = (form) => `${firstNameOf(form.email)}'s Org - ${today()}`;
 const mailTo = (email) => w.app.mailer.outbox.filter((m) => m.to === email);
 const tokenOf = (msg) => msg.link.split('#token=')[1];
 const signUpAndGetToken = async (form) => {
@@ -176,7 +178,7 @@ test('two signups whose emails give the same placeholder org name: neither is re
   const local = `jordan${++n}`;
   const a = valid({ email: `${local}@first${n}.test` });
   const b = valid({ email: `${local}@second${n}.test` });
-  const plain = `${local}'s organization`;
+  const plain = `${firstNameOf(local)}'s Org - ${today()}`;
 
   assert.equal((await post('/v1/signup', a)).status, 202);
   assert.equal((await post('/v1/signup', b)).status, 202, 'the second is never told the name is taken');
@@ -267,7 +269,7 @@ test('two signups pending for the same placeholder name: whoever verifies second
   assert.equal((await post('/v1/signup/verify', { token: tb })).status, 200);
   const late = await post('/v1/signup/verify', { token: ta });
   assert.equal(late.status, 200);
-  assert.ok(late.body.orgName.startsWith(`${local}'s organization`));
+  assert.ok(late.body.orgName.startsWith(`${firstNameOf(local)}'s Org - ${today()}`));
 });
 
 test('verification is a staff decision, and every agent of the company inherits it, now and later', async () => {

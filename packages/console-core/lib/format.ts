@@ -77,7 +77,7 @@ export function describeUserAgent(ua: string | null | undefined): string {
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: 'Bond admin', reviewer: 'Bond reviewer', owner_admin: 'Owner admin', owner_viewer: 'Owner viewer',
+  admin: 'Bond admin', reviewer: 'Bond reviewer', owner_admin: 'Organization owner', owner_viewer: 'Owner viewer',
 };
 
 export const CATEGORIES = ['digital_goods', 'data', 'physical_goods', 'services', 'other', 'financial', 'legal'];

@@ -14,8 +14,12 @@ import { EMAIL_RE } from './identity.types';
 import { OrgsService } from './orgs.service';
 import { UsersService } from './users.service';
 
-// The name an account starts with, from the part of the email before the @ (Account can change it).
-const defaultName = (email: string): string => email.split('@')[0].replace(/[._+-]+/g, ' ').trim().slice(0, 60) || 'New user';
+// What an account starts with, taken from the part of the email before the @ (Account and Organization can change it):
+// the name is the first word of it, capitalised, and the organization is "<First name>'s Org - <creation date>".
+const firstName = (email: string): string => {
+  const word = email.split('@')[0].split(/[._+-]+/).find(Boolean) ?? '';
+  return (word.charAt(0).toUpperCase() + word.slice(1)).slice(0, 40) || 'My';
+};
 
 const SIGNUP_TTL_MS = 24 * 3_600_000;
 // Placeholder wording (see the sign-up form). Have counsel replace it, and bump this, before real customers sign up.
@@ -74,8 +78,8 @@ export class SignupService {
     // owner sets the real ones in Account and Organization. A collision is disambiguated rather than refused,
     // since the placeholder is ours, not something the person chose. The check that matters is in verify(),
     // because a real org isn't created (and so can't collide) until then.
-    const name = defaultName(email);
-    const company = await this.disambiguate(`${name}'s organization`);
+    const name = firstName(email);
+    const company = `${name}'s Org`; // the day the org is created is added in verify()
     const accountType = 'business';
 
     // An address that already has an account is told so, plainly: a person who forgot they signed up needs to know.
@@ -128,7 +132,9 @@ export class SignupService {
     const rec = (await this.col.findOneAndDelete({ verifyHash: h }, this.mongo.tx)) as unknown as PendingSignup | null;
     if (!rec || rec.expires < this.clock.now()) throw new HttpError(400, 'INVALID_VERIFICATION', 'This verification link is invalid or has expired. Please sign up again.');
     if (await this.users.findByEmail(rec.email)) throw new HttpError(409, 'USER_EXISTS', 'An account with this email already exists. Try signing in.');
-    if (await this.orgs.nameTaken(rec.company)) rec.company = await this.disambiguate(rec.company); // taken in the meantime
+    // "Pat's Org - 2026-09-30": the placeholder name plus the day the organization is created. A clash gets a suffix.
+    const dated = `${rec.company} - ${new Date(this.clock.now()).toISOString().slice(0, 10)}`;
+    rec.company = (await this.orgs.nameTaken(dated)) ? await this.disambiguate(dated) : dated;
     return this.mongo.transaction(async () => {
       const org = await this.orgs.create(rec.company, null, rec.accountType);
       org.createdVia = 'signup';
