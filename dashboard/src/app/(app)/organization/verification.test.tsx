@@ -141,4 +141,30 @@ describe('VerificationPage', () => {
     renderWithProviders(<VerificationPage />);
     expect(await screen.findByText(/Fully verified — there's nothing further to apply for/)).toBeInTheDocument();
   });
+
+  it('lets an owner set the account type here before applying', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['request_verification', 'org_manage'] },
+      '/v1/console/orgs': { orgs: [org()] },
+      '/v1/console/verification-requests': { requests: [] },
+      '/v1/console/orgs/org_1/profile': org({ accountType: 'individual' }),
+    });
+    renderWithProviders(<VerificationPage />);
+    const type = await screen.findByLabelText('Account type');
+    expect(type).not.toBeDisabled();
+    fireEvent.change(type, { target: { value: 'individual' } });
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true));
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!;
+    expect(JSON.parse(String(put[1]?.body))).toEqual({ accountType: 'individual' });
+  });
+
+  it('locks the account type once verification has started', async () => {
+    mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['request_verification', 'org_manage'] },
+      '/v1/console/orgs': { orgs: [org({ verification: 1 })] },
+      '/v1/console/verification-requests': { requests: [] },
+    });
+    renderWithProviders(<VerificationPage />);
+    expect(await screen.findByLabelText('Account type')).toBeDisabled();
+  });
 });

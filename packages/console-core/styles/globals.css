@@ -293,6 +293,16 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
 .pref-facts dd { margin: 2px 0 0; color: var(--muted); }
 @media (max-width: 520px) { .pref-card { flex-direction: column; align-items: stretch; } .pref-card select { max-width: none; width: 100%; } }
 
+/* organization facts: ID, name, created date */
+.org-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.org-facts .pref-card { margin-top: 0; }
+.fact-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.fact-head h3 { margin: 0; }
+.fact-value { margin: 0; overflow-wrap: anywhere; }
+.mono { font-family: var(--mono); font-size: 13px; }
+.fact-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.fact-btn:hover { color: var(--text); background: var(--panel); }
+
 /* Email and Phone rows share one grid: a label column (name, with its status badge under it), the value, then the action. */
 .setting { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 16px 0; border-top: 1px solid var(--line); }
 .setting.first { margin-top: 14px; }

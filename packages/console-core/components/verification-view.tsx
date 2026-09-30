@@ -97,6 +97,7 @@ function Application() {
         <p>
           <span className={`pill ${status.color}`}>{status.label}</span>
         </p>
+        <AccountTypeField org={org} locked={level > 0 || !!pending} onChanged={reload} />
         <p className="muted">
           {org.name} is currently <b>{orgVerifyLabel(level, org.accountType)}</b>. Verifying raises your Bond
           Score and lowers the premium your agents&apos; counterparties pay to trade with them.
@@ -119,6 +120,37 @@ function Application() {
           <Wizard org={org} previous={previous} onSubmitted={reload} />
         )}
       </FormPanel>
+    </div>
+  );
+}
+
+// Which evidence verification asks for depends on this, so it is set here and locked once verification has started.
+function AccountTypeField({ org, locked, onChanged }: { org: Org; locked: boolean; onChanged: () => Promise<void> }) {
+  const { has } = useSession();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function change(accountType: Org['accountType']) {
+    setBusy(true);
+    try {
+      await api('PUT', `/v1/console/orgs/${org.id}/profile`, { accountType });
+      await onChanged();
+      toast('Account type saved');
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="manage">
+      <label htmlFor="vf-type">Account type</label>
+      <select id="vf-type" value={org.accountType} disabled={busy || locked || !has('org_manage')} onChange={(e) => change(e.target.value as Org['accountType'])}>
+        <option value="business">Business (a company or team)</option>
+        <option value="individual">Individual (just me)</option>
+      </select>
+      <p className="muted small">
+        {locked ? 'The type is fixed once verification has started. Contact Bond support to change it.' : 'This decides what we ask for when you apply. Set it before you apply.'}
+      </p>
     </div>
   );
 }
