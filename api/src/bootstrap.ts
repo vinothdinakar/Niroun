@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { Server } from 'node:http';
-import { LogLevel } from '@nestjs/common';
+import { LogLevel, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -8,6 +8,7 @@ import { BondOptions, resolveOptions } from './config/options';
 import { MailerService } from './core/mailer.service';
 import { SmsService } from './core/sms.service';
 import { MongoService } from './storage/mongo.service';
+import { took } from './startup';
 import { AgentsService } from './agents/agents.service';
 import { DealsService } from './deals/deals.service';
 import { ReportsService } from './deals/reports.service';
@@ -53,13 +54,21 @@ export async function createApp(
   runtime: { logger?: LogLevel[] | false; shutdownHooks?: boolean } = {},
 ): Promise<BondApp> {
   const options = resolveOptions(partial);
+  // Phase timings are for the real server (main.ts asks for 'log'); tests and the demo start many apps and stay quiet.
+  const say = Array.isArray(runtime.logger) && runtime.logger.includes('log') ? (m: string) => new Logger('Startup').log(m) : () => undefined;
+  const t0 = Date.now();
+  say('loading modules (building the dependency graph)');
   const nest = await NestFactory.create<NestExpressApplication>(AppModule.register(options), {
     bodyParser: false, // EdgeMiddleware reads the body itself: agent signatures cover the exact bytes
     logger: runtime.logger ?? ['error', 'warn'],
   });
+  say(`modules loaded in ${took(Date.now() - t0)}`);
   nest.disable('x-powered-by');
   if (runtime.shutdownHooks) nest.enableShutdownHooks(); // close the database connection on SIGINT/SIGTERM
+  const t1 = Date.now();
+  say('initializing (this connects to MongoDB and prepares the database)');
   await nest.init();
+  say(`initialized in ${took(Date.now() - t1)}`);
 
   const users = nest.get(UsersService);
   const orgs = nest.get(OrgsService);

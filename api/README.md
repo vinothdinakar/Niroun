@@ -28,6 +28,10 @@ npm run build:watch    # in one terminal, and `npm run start:dev` in another, fo
 
 After `npm run demo`, the demo accounts (staff and two customer companies) and their randomly generated passwords are in `demo/demo-users.json` (git-ignored, created on first run, and never used by `npm start`). **Staff accounts also need a two-factor code**: add the `totpSecret` from that file to an authenticator app (once; it survives restarts), or just run `npm run demo:code -- admin@bond.test`. The file also holds one-time recovery codes.
 
+### What the API logs while it starts
+
+On start it prints (prefix `[Startup]`) its environment and settings, **never a secret** (only whether each one is present), any settings that look wrong, then each phase with the time since start: opening file storage, setting up payments, loading modules, connecting to MongoDB (host, replica set, how long it took), creating indexes, opening the port, and `Ready: listening on port …`. If it stops, the last line says **which phase** and the error, followed by a `Likely cause:` in plain language (MongoDB unreachable or rejecting the login, a bad encryption key, a port in use, a missing module, …). If something hangs rather than fails, a `still busy: <phase>` line repeats every 10 seconds. This is what you read on Cloud Run when a revision "failed to start and listen on the port". The code is in `src/startup.ts` (tested in `test/startup.test.mjs`).
+
 ### Configuration (environment variables)
 
 For local use, copy `.env.example` to `.env.local` and run `npm run start:local`. See "Configuration and secrets" in the root README for how each environment is configured.
