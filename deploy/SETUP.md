@@ -46,7 +46,14 @@ openssl rand -base64 32 | tr -d '\n' | gcloud secrets create niroun-encryption-k
 # the domain must be verified in Resend (SPF + DKIM DNS records).
 read -rs -p "Resend API key: " RESEND_KEY; echo
 printf '%s' "$RESEND_KEY" | gcloud secrets create niroun-resend-api-key --data-file=-
-for s in niroun-mongo-url niroun-encryption-key niroun-resend-api-key; do
+# Stripe (organization wallet, test mode). Same pattern: paste when prompted; create the webhook endpoints first (api/README.md,
+# "Setting up Stripe"). Then add STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / STRIPE_CONNECT_WEBHOOK_SECRET to the --set-secrets
+# line in .github/workflows/_deploy.yml (not added yet: the deploy would fail until these secrets exist).
+for name in stripe-secret-key stripe-webhook-secret stripe-connect-webhook-secret; do
+  read -rs -p "$name: " V; echo
+  printf '%s' "$V" | gcloud secrets create niroun-$name --data-file=-
+done
+for s in niroun-mongo-url niroun-encryption-key niroun-resend-api-key niroun-stripe-secret-key niroun-stripe-webhook-secret niroun-stripe-connect-webhook-secret; do
   gcloud secrets add-iam-policy-binding $s --member=serviceAccount:$RUNTIME_SA \
     --role=roles/secretmanager.secretAccessor
 done
