@@ -30,6 +30,8 @@ After `npm run demo`, the demo accounts (staff and two customer companies) and t
 
 ### Configuration (environment variables)
 
+For local use, copy `.env.example` to `.env.local` and run `npm run start:local`. See "Configuration and secrets" in the root README for how each environment is configured.
+
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `4100` | Port the API listens on |
@@ -43,6 +45,8 @@ After `npm run demo`, the demo accounts (staff and two customer companies) and t
 | `BOND_TRUST_PROXY` | off | Set to `1` **only** behind a proxy you control that sets `X-Forwarded-For`, so per-visitor rate limits see the real address |
 | `BOND_SIGNUP` | `closed` | `open` lets companies register themselves |
 | `BOND_DEV_MAILBOX` | off | `1` keeps emails and SMS texts in memory and exposes them at `/v1/dev/outbox` and `/v1/dev/sms-outbox`. Never in production |
+| `RESEND_API_KEY` | none | Sends email through [Resend](https://resend.com). Ignored when `BOND_DEV_MAILBOX=1`. Without it emails are printed to the console |
+| `BOND_MAIL_FROM` | `Bond <no-reply@assetslices.com>` | The From address; its domain must be verified in Resend |
 | `BOND_BOOTSTRAP_EMAIL` | none | Creates the first admin's one-time setup link when no admin exists |
 | `BOND_COOKIE_SECURE` | off | `1` when served over HTTPS |
 | `BOND_GCS_BUCKET` | none (local folder `data/uploads`) | Google Cloud Storage bucket for KYB/KYC evidence files. Credentials come from Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, or the runtime's service account). Without it the server stores files on local disk and warns: fine for dev, not for production |
@@ -78,7 +82,7 @@ Design decisions:
 - **New companies start unverified.** Bond staff verify businesses from the Organizations tab (Unverified / Owner verified / Fully verified). Verifying a company upgrades all its agents, and agents enrolled later inherit it, which lowers their bond premiums. Verification is never self-service.
 - **Abuse limits.** 5 signups/hour per source address and 3/hour per email, a honeypot field for bots, strong-password rules, and no sign-in before verification. **Add a CAPTCHA/bot check before opening signup to the public internet.**
 - **Email links come from configuration** (`BOND_PUBLIC_URL`), never from the request's `Host` header, which would let an attacker send victims a link to their own site. Tokens travel in the URL fragment, which browsers don't send to servers or log.
-- **Email is one interface** (`src/core/mailer.service.ts`). It prints to the console by default. In `npm run demo` (and tests) messages are kept in memory and shown in a demo mailbox on the "check your email" screen. To go live, add a provider (SES, Postmark, SMTP) behind `mailer.send()`. Nothing else changes. `BOND_DEV_MAILBOX=1` turns the mailbox on for a non-demo server; never do that in production, since it exposes verification links.
+- **Email is one interface** (`src/core/mailer.service.ts`). It prints to the console by default. In `npm run demo` (and tests) messages are kept in memory and shown in a demo mailbox on the "check your email" screen. Set `RESEND_API_KEY` to send through Resend (delivery failures are logged, never thrown, so signup replies stay identical). `BOND_DEV_MAILBOX=1` turns the mailbox on for a non-demo server; never do that in production, since it exposes verification links.
 - **Terms are a placeholder** (`TERMS_VERSION = 'preview-1'`, stored with each account). Have counsel replace them before real customers sign up.
 
 ## Who can sign in
