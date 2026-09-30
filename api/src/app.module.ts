@@ -7,6 +7,7 @@ import { IdentityModule } from './identity/identity.module';
 import { AgentsModule } from './agents/agents.module';
 import { DealsModule } from './deals/deals.module';
 import { ConsoleModule } from './console/console.module';
+import { WalletModule } from './wallet/wallet.module';
 import { HealthController } from './health.controller';
 import { AuthGuard } from './common/auth.guard';
 import { AllExceptionsFilter } from './common/exception.filter';
@@ -17,7 +18,7 @@ export class AppModule implements NestModule {
   static register(options: BondOptions): DynamicModule {
     return {
       module: AppModule,
-      imports: [OptionsModule.forRoot(options), CoreModule, IdentityModule, AgentsModule, DealsModule, ConsoleModule],
+      imports: [OptionsModule.forRoot(options), CoreModule, IdentityModule, AgentsModule, DealsModule, ConsoleModule, WalletModule],
       controllers: [HealthController],
       providers: [
         { provide: APP_GUARD, useClass: AuthGuard }, // every route is authenticated (or explicitly @Access('public'))

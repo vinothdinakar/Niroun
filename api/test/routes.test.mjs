@@ -37,7 +37,7 @@ before(async () => {
 after(async () => { await app.close(); });
 
 test('the API exposes the routes we expect', () => {
-  assert.equal(routes.length, 71, `found ${routes.length} routes; if you added or removed an endpoint on purpose, update this number`);
+  assert.equal(routes.length, 78, `found ${routes.length} routes; if you added or removed an endpoint on purpose, update this number`);
   const names = new Set(routes.map((r) => r.route));
   for (const must of ['POST /v1/quotes', 'POST /v1/transactions/:id/events', 'GET /v1/agents/:id/ledger', 'PUT /v1/console/agents/:id/policy', 'POST /v1/console/sweep', 'PUT /v1/auth/preferences']) {
     assert.ok(names.has(must), `missing ${must}`);
@@ -61,6 +61,7 @@ test('only the deliberate list of routes is public; everything else needs someon
     'POST /v1/signup',
     'POST /v1/signup/resend',
     'POST /v1/signup/verify',
+    'POST /v1/stripe/webhook', // trusted only by its Stripe signature
   ].sort());
 });
 
@@ -87,6 +88,10 @@ test('staff-only actions are guarded by a named permission', () => {
   assert.equal(guarded.get('PUT /v1/console/agents/:id/policy'), 'agents_manage');
   assert.equal(guarded.get('POST /v1/console/agents/:id/status'), 'agents_suspend');
   assert.equal(guarded.get('POST /v1/console/transactions/:id/disputes'), 'agents_manage');
+  for (const r of ['POST /v1/console/wallet/deposits', 'POST /v1/console/wallet/deposits/:id/sync', 'POST /v1/console/wallet/payouts/setup', 'POST /v1/console/wallet/withdrawals']) {
+    assert.equal(guarded.get(r), 'wallet_manage', r); // moving money is the organization owner's alone
+  }
+  assert.equal(guarded.get('GET /v1/console/wallet'), undefined, 'reading the wallet is open to the whole organization');
 });
 
 test('anonymous requests to every non-public GET route are refused', async () => {

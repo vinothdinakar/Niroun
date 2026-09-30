@@ -246,3 +246,40 @@ export interface AuditEntry {
 }
 
 export interface PoolAccount { capitalCents: number; premiumsCents: number; refundsCents: number; payoutsCents: number }
+
+// ---- organization wallet (see wallet/wallet.service.ts) ----
+
+/** One money movement in an organization's wallet, with its lifecycle. Deposits arrive through Stripe Checkout; withdrawals leave through Stripe Connect. */
+export interface WalletTx {
+  id: string;
+  orgId: string;
+  type: 'deposit' | 'withdrawal' | 'hold' | 'release' | 'fee';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'canceled';
+  /** The amount moved into (deposit) or out of (withdrawal) the wallet. Always positive. */
+  amountCents: number;
+  /** Deposits: what Stripe's charge costs on top of the amount (the customer pays it). */
+  feeCents: number;
+  /** Deposits: what the customer is charged (amount + fee). */
+  chargeCents: number;
+  method: 'card' | 'ach' | 'bank' | null;
+  description: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  /** The wallet balance right after this entry hit the ledger; null until it has. */
+  balanceAfterCents: number | null;
+  failureReason?: string;
+  stripe: { sessionId?: string; paymentIntentId?: string; accountId?: string; transferId?: string; payoutId?: string };
+}
+
+/** The Stripe Connect account an organization is paid out through. One per organization; the document's _id is the org id. */
+export interface WalletAccount {
+  id: string; // = orgId
+  orgId: string;
+  stripeAccountId: string;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  bank: { last4: string | null; name: string | null } | null;
+  createdAt: number;
+  updatedAt: number;
+}

@@ -1,5 +1,6 @@
 import { loadEncryptionKey } from '../domain/totp';
 import { FileStore, MemoryFileStore } from '../storage/file-store';
+import type { StripeGateway } from '../wallet/stripe.gateway';
 
 export const BOND_OPTIONS = Symbol('BOND_OPTIONS');
 
@@ -37,6 +38,8 @@ export interface BondOptions {
   /** The staff admin app's URL, used in links emailed to staff accounts (their own email verification).
    * Falls back to `publicUrl` when unset, which is fine for a single-server dev/test setup. */
   staffUrl: string | undefined;
+  /** Stripe, for the organization wallet (deposits and withdrawals). Absent: the wallet is switched off. */
+  stripe: StripeGateway | undefined;
   /** How often to run the expiry sweep, in ms. 0 disables it (tests call it explicitly). */
   sweepIntervalMs: number;
   /** Where KYB/KYC evidence files are kept (Google Cloud Storage in production). */
@@ -64,6 +67,7 @@ export function resolveOptions(partial: Partial<BondOptions> & { keyFile?: strin
     mailFrom: partial.mailFrom ?? process.env.BOND_MAIL_FROM ?? 'Bond <no-reply@assetslices.com>',
     publicUrl: partial.publicUrl ?? process.env.BOND_PUBLIC_URL,
     staffUrl: partial.staffUrl ?? process.env.BOND_STAFF_URL,
+    stripe: partial.stripe,
     sweepIntervalMs: partial.sweepIntervalMs ?? 0,
     fileStore: partial.fileStore ?? new MemoryFileStore(),
     docRetentionDays: partial.docRetentionDays ?? 90,

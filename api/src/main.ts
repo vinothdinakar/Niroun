@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { createApp } from './bootstrap';
 import { DiskFileStore, openGcsBucket } from './storage/file-store';
+import { LiveStripeGateway } from './wallet/stripe.gateway';
 
 // Starts the API from environment variables. See api/README.md for the full list.
 async function main(): Promise<void> {
@@ -15,9 +16,16 @@ async function main(): Promise<void> {
   if (!bucket) console.warn('BOND_GCS_BUCKET is not set: verification documents are stored in ./data/uploads (development only).');
   const fileStore = bucket ? await openGcsBucket(bucket) : new DiskFileStore(join(__dirname, '..', 'data', 'uploads'));
 
+  // Stripe, for the wallet: without a secret key the wallet is switched off.
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripeSecrets = [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET].filter((s): s is string => !!s);
+  if (stripeKey && !stripeSecrets.length) console.warn('STRIPE_WEBHOOK_SECRET is not set: Stripe webhooks will be refused, so deposits will only be credited when the person returns to the console.');
+  const stripe = stripeKey ? new LiveStripeGateway(stripeKey, stripeSecrets) : undefined;
+
   const app = await createApp(
     {
       fileStore,
+      stripe,
       docRetentionDays: Number(process.env.BOND_DOC_RETENTION_DAYS) || 90,
       // mongoUrl / mongoDb come from BOND_MONGO_URL / BOND_MONGO_DB (see config/options.ts)
       keyFile: process.env.BOND_KEY_FILE || join(__dirname, '..', 'data', 'encryption.key'),
