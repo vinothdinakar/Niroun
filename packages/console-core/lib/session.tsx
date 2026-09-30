@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, setSessionEndedHandler } from './api';
+import { setDisplayPrefs } from './format';
 import type { Me, Permission } from './types';
 
 type Status = 'loading' | 'in' | 'out';
@@ -38,12 +39,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true;
     api<Me>('GET', '/v1/auth/me')
-      .then((r) => { if (live) { setMe(r); setStatus('in'); } })
+      .then((r) => { if (live) { setDisplayPrefs(r.user.preferences); setMe(r); setStatus('in'); } })
       .catch(() => { if (live) setStatus('out'); });
     return () => { live = false; };
   }, []);
 
   const endSession = useCallback((message: string) => {
+    setDisplayPrefs(null);
     setMe(null);
     setStatus('out');
     setNotice(message);
@@ -56,7 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => setSessionEndedHandler(null);
   }, [status, endSession]);
 
-  const signedIn = useCallback((next: Me) => { setMe(next); setStatus('in'); setNotice(''); }, []);
+  const signedIn = useCallback((next: Me) => { setDisplayPrefs(next.user.preferences); setMe(next); setStatus('in'); setNotice(''); }, []);
 
   const signOut = useCallback(async () => {
     await api('POST', '/v1/auth/logout', {}).catch(() => undefined);

@@ -208,6 +208,8 @@ export interface User {
   phoneVerifiedAt: number | null;
   phoneCodeHash: string | null;
   phoneCodeExpires: number | null;
+  /** Display preferences (time zone, date and time format). Absent until first set. */
+  preferences?: { timeZone: string | null; dateFormat: 'MDY' | 'DMY' | 'YMD' | null; timeFormat: '12h' | '24h' | null };
 }
 
 export interface Session { userId: string; createdAt: number; lastSeen: number; mfa: boolean; ip: string; userAgent: string | null }

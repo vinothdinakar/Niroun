@@ -1,12 +1,33 @@
-import type { Role } from './types';
+import type { DisplayPrefs, Role } from './types';
 
 export const usd = (cents: number): string =>
   '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const usd0 = (cents: number): string => '$' + Math.round(cents / 100).toLocaleString('en-US');
 
-export const when = (t: number | null | undefined): string =>
-  t ? new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+export const NO_DISPLAY_PREFS: DisplayPrefs = { timeZone: null, dateFormat: null, timeFormat: null };
+
+/** The signed-in person's display preferences. The session provider sets it when they sign in or change it, so
+ * every date shown through `when` follows it without each screen having to ask. */
+let displayPrefs: DisplayPrefs = NO_DISPLAY_PREFS;
+export const setDisplayPrefs = (p: Partial<DisplayPrefs> | null | undefined): void => { displayPrefs = { ...NO_DISPLAY_PREFS, ...p }; };
+
+/** A moment as text under the given preferences: their time zone, date order and 12/24-hour clock. With none set it
+ * is the browser's own short style, e.g. "Sep 30, 12:52 AM". */
+export function formatDateTime(t: number | null | undefined, prefs: DisplayPrefs): string {
+  if (!t) return '—';
+  const d = new Date(t);
+  const timeZone = prefs.timeZone ?? undefined;
+  const clock = prefs.timeFormat ? { hourCycle: prefs.timeFormat === '24h' ? 'h23' : 'h12' } as const : {};
+  if (!prefs.dateFormat) return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone, ...clock });
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone }).formatToParts(d).map((x) => [x.type, x.value]),
+  );
+  const date = prefs.dateFormat === 'MDY' ? `${p.month}/${p.day}/${p.year}` : prefs.dateFormat === 'DMY' ? `${p.day}/${p.month}/${p.year}` : `${p.year}-${p.month}-${p.day}`;
+  return `${date}, ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', timeZone, ...clock })}`;
+}
+
+export const when = (t: number | null | undefined): string => formatDateTime(t, displayPrefs);
 
 /** A 'YYYY-MM-DD' day string (as the API's daily aggregates use) as "Sep 21". */
 export const shortDay = (day: string): string =>

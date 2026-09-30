@@ -11,9 +11,18 @@ import { sha256 } from '../domain/canonical';
 import { hashPassword, validatePassword } from '../domain/password';
 import { normalizeRecovery, seal } from '../domain/totp';
 import { OWNER_ROLES, ROLES, can, isStaff } from '../domain/roles';
-import { Actor, EMAIL_RE, InviteResult, PublicUser } from './identity.types';
+import { Actor, EMAIL_RE, InviteResult, NO_PREFERENCES, PublicUser, SESSION_IDLE_MS, SESSION_MAX_MS, UserPreferences } from './identity.types';
 import { OrgsService } from './orgs.service';
 import { SessionsService } from './sessions.service';
+
+const isTimeZone = (tz: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 
@@ -46,6 +55,8 @@ export class UsersService {
       mfa: u.totp?.enabledAt ? 'enabled' : isStaff(u) ? 'required' : 'off',
       recoveryCodesLeft: u.totp?.enabledAt ? u.recovery.length : null,
       emailVerified: !!u.emailVerifiedAt, phone: u.phone ?? null, phoneVerified: !!u.phoneVerifiedAt,
+      preferences: { ...NO_PREFERENCES, ...u.preferences },
+      sessionPolicy: { absoluteHours: SESSION_MAX_MS / 3_600_000, idleHours: SESSION_IDLE_MS / 3_600_000 },
     };
   }
 
@@ -69,6 +80,34 @@ export class UsersService {
       Object.assign(fresh, changes);
       await this.mongo.users.save(fresh);
       await this.audit.record(user, 'user.profile_update', user.id, changes);
+      return this.publicUser(fresh);
+    });
+  }
+
+  /**
+   * People choose how their own dates and times are shown. Only the keys sent change; null clears one back to
+   * "no preference" (the browser's own).
+   */
+  async updatePreferences(user: User, input: Record<string, unknown>): Promise<PublicUser> {
+    const next = { ...NO_PREFERENCES, ...user.preferences };
+    if ('timeZone' in input) {
+      const tz = input.timeZone;
+      if (tz !== null && (typeof tz !== 'string' || !isTimeZone(tz))) throw badRequest('INVALID_PREFERENCE', 'timeZone must be a valid time zone such as "America/Toronto"');
+      next.timeZone = tz;
+    }
+    if ('dateFormat' in input) {
+      if (input.dateFormat !== null && !['MDY', 'DMY', 'YMD'].includes(input.dateFormat as string)) throw badRequest('INVALID_PREFERENCE', 'dateFormat must be MDY, DMY or YMD');
+      next.dateFormat = input.dateFormat as UserPreferences['dateFormat'];
+    }
+    if ('timeFormat' in input) {
+      if (input.timeFormat !== null && !['12h', '24h'].includes(input.timeFormat as string)) throw badRequest('INVALID_PREFERENCE', 'timeFormat must be 12h or 24h');
+      next.timeFormat = input.timeFormat as UserPreferences['timeFormat'];
+    }
+    return this.mongo.transaction(async () => {
+      const fresh = ((await this.mongo.users.get(user.id)) as User) ?? user;
+      fresh.preferences = next;
+      await this.mongo.users.save(fresh);
+      await this.audit.record(user, 'user.preferences_update', user.id, next);
       return this.publicUser(fresh);
     });
   }

@@ -3,6 +3,13 @@
 export type Role = 'admin' | 'reviewer' | 'owner_admin' | 'owner_viewer';
 export type Permission = 'enroll' | 'team_manage' | 'orgs' | 'audit' | 'resolve' | 'verify' | 'agents_manage' | 'agents_suspend' | (string & {});
 
+/** How a person wants dates and times shown; null is "no preference" (the browser's own). */
+export interface DisplayPrefs {
+  timeZone: string | null;
+  dateFormat: 'MDY' | 'DMY' | 'YMD' | null;
+  timeFormat: '12h' | '24h' | null;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -23,6 +30,8 @@ export interface User {
   emailVerified: boolean;
   phone: string | null;
   phoneVerified: boolean;
+  preferences?: DisplayPrefs;
+  sessionPolicy?: { absoluteHours: number; idleHours: number };
 }
 
 export interface Me { user: User; permissions: Permission[] }

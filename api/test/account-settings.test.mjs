@@ -53,3 +53,27 @@ test('signed-out callers cannot rename anyone', async () => {
   const res = await fetch(`${w.baseUrl}/v1/auth/me`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"name":"Eve"}' });
   assert.equal(res.status, 401);
 });
+
+test('a person sets their own display preferences; only the keys sent change, null clears, junk is refused', async () => {
+  const org = await w.app.accounts.createOrg('Prefs Co', null, 'business');
+  const user = await w.makeUser({ role: 'owner_viewer', orgId: org.id });
+  const session = await user.signIn();
+  const put = (body) => session.req('PUT', '/v1/auth/preferences', body);
+
+  const fresh = (await session.req('GET', '/v1/auth/me')).body.user;
+  assert.deepEqual(fresh.preferences, { timeZone: null, dateFormat: null, timeFormat: null }, 'no preference until chosen');
+  assert.deepEqual(fresh.sessionPolicy, { absoluteHours: 12, idleHours: 2 });
+
+  const a = await put({ timeZone: 'America/Toronto', timeFormat: '24h' });
+  assert.equal(a.status, 200);
+  assert.deepEqual(a.body.user.preferences, { timeZone: 'America/Toronto', dateFormat: null, timeFormat: '24h' });
+  const b = await put({ dateFormat: 'DMY' });
+  assert.deepEqual(b.body.user.preferences, { timeZone: 'America/Toronto', dateFormat: 'DMY', timeFormat: '24h' }, 'other keys are kept');
+  assert.equal((await session.req('GET', '/v1/auth/me')).body.user.preferences.dateFormat, 'DMY', 'persisted');
+  assert.equal((await put({ timeZone: null })).body.user.preferences.timeZone, null, 'null clears a preference');
+
+  for (const bad of [{ timeZone: 'Mars/Olympus' }, { timeZone: 5 }, { dateFormat: 'XYZ' }, { timeFormat: '13h' }]) {
+    assert.equal((await put(bad)).status, 400, JSON.stringify(bad));
+  }
+  assert.equal((await put({ role: 'admin' })).body.user.role, 'owner_viewer', 'nothing but preferences is editable here');
+});

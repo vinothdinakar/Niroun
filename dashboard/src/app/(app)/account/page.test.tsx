@@ -22,7 +22,7 @@ describe('AccountPage', () => {
     expect(screen.getAllByText('ada@acme.test').length).toBeGreaterThan(0); // once in the hero, once in the Email row
     expect(screen.getByText('AO')).toBeInTheDocument();
     expect(screen.getByText('Organization owner')).toHaveClass('pill');
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions', 'User preferences']);
     expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -66,6 +66,33 @@ describe('AccountPage', () => {
       expect(JSON.parse(String(post?.[1]?.body))).toEqual({ current: 'old-password-123', next: 'a-brand-new-password' });
     });
     await waitFor(() => expect(screen.getByLabelText('Current password')).toHaveValue(''));
+  });
+
+  it('has a User preferences section with time zone, date format, time format and the session timeouts', async () => {
+    window.location.hash = '#preferences';
+    mockApi({ '/v1/auth/me': { user: user({ sessionPolicy: { absoluteHours: 12, idleHours: 2 } }), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByLabelText('My time zone')).toHaveValue('');
+    expect(screen.getByLabelText('My date format')).toHaveValue('');
+    expect(screen.getByLabelText('My time format')).toHaveValue('');
+    expect(screen.getByText('Absolute session timeout')).toBeInTheDocument();
+    expect(screen.getByText('12 hours')).toBeInTheDocument();
+    expect(screen.getByText(/2 hours without activity/)).toBeInTheDocument();
+  });
+
+  it('saves a preference the moment it changes, and keeps it selected', async () => {
+    window.location.hash = '#preferences';
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/preferences': { user: user({ preferences: { timeZone: null, dateFormat: 'YMD', timeFormat: null } }), permissions: [] },
+    });
+    renderWithProviders(<AccountPage />);
+    fireEvent.change(await screen.findByLabelText('My date format'), { target: { value: 'YMD' } });
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([u, init]) => String(u) === '/v1/auth/preferences' && init?.method === 'PUT');
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ dateFormat: 'YMD' });
+    });
+    await waitFor(() => expect(screen.getByLabelText('My date format')).toHaveValue('YMD'));
   });
 
   it('opens straight to a section named in the address, and reports two-step status', async () => {

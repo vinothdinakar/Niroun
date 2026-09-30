@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api';
-import { ROLE_LABEL, describeUserAgent, when } from '../lib/format';
+import { NO_DISPLAY_PREFS, ROLE_LABEL, describeUserAgent, formatDateTime, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
-import type { Me, SessionRow } from '../lib/types';
+import type { DisplayPrefs, Me, SessionRow } from '../lib/types';
 import { RecoveryDialog } from './account-dialogs';
 import { PasswordInput } from './ui';
 import { useLoaderShim } from './use-loader-shim';
@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'password', label: 'Password' },
   { id: 'two-step', label: 'Two-step verification' },
   { id: 'sessions', label: 'Active sessions' },
+  { id: 'preferences', label: 'User preferences' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 
@@ -85,6 +86,7 @@ function Account({ me }: { me: Me }) {
           {active === 'password' && <PasswordSection />}
           {active === 'two-step' && <TwoStepSection me={me} />}
           {active === 'sessions' && <SessionsSection />}
+          {active === 'preferences' && <PreferencesSection me={me} />}
         </section>
       </div>
     </div>
@@ -333,6 +335,92 @@ function PasswordSection() {
           <button className="btn primary" type="submit" disabled={busy || !current || next.length < 12}>Change password</button>
         </div>
       </form>
+    </>
+  );
+}
+
+// One card per setting, each saved the moment it changes. Dates across the console then follow these choices.
+const DATE_FORMATS: { value: NonNullable<DisplayPrefs['dateFormat']>; label: string }[] = [
+  { value: 'MDY', label: 'MM/DD/YYYY' }, { value: 'DMY', label: 'DD/MM/YYYY' }, { value: 'YMD', label: 'YYYY-MM-DD' },
+];
+const TIME_FORMATS: { value: NonNullable<DisplayPrefs['timeFormat']>; label: string }[] = [
+  { value: '12h', label: '12-hour (AM/PM)' }, { value: '24h', label: '24-hour' },
+];
+const timeZones = (): string[] => {
+  const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+  return supported ? supported('timeZone') : ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney'];
+};
+
+function PreferencesSection({ me }: { me: Me }) {
+  const { signedIn } = useSession();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const u = me.user;
+  const prefs = { ...NO_DISPLAY_PREFS, ...u.preferences };
+  const policy = u.sessionPolicy ?? { absoluteHours: 12, idleHours: 2 };
+  const zones = useMemo(() => { const all = timeZones(); return prefs.timeZone && !all.includes(prefs.timeZone) ? [prefs.timeZone, ...all] : all; }, [prefs.timeZone]);
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Date.now();
+  const hours = (h: number) => `${h} hour${h === 1 ? '' : 's'}`;
+
+  async function save(change: Partial<DisplayPrefs>) {
+    setBusy(true);
+    try {
+      signedIn(await api<Me>('PUT', '/v1/auth/preferences', change));
+      toast('Preference saved');
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <h2 className="plain">User preferences</h2>
+      <p className="muted small">How dates and times appear to you across the console. Only you see these choices.</p>
+
+      <div className="pref-card">
+        <div>
+          <h3>My time zone</h3>
+          <p className="muted small">When dates are displayed, show them in this time zone.</p>
+        </div>
+        <select aria-label="My time zone" disabled={busy} value={prefs.timeZone ?? ''} onChange={(e) => void save({ timeZone: e.target.value || null })}>
+          <option value="">No preference ({browserZone})</option>
+          {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}
+        </select>
+      </div>
+
+      <div className="pref-card">
+        <div>
+          <h3>My date format</h3>
+          <p className="muted small">When dates are displayed, show them in this format. Example: {formatDateTime(now, { ...prefs, dateFormat: prefs.dateFormat ?? 'MDY' }).split(',')[0]}</p>
+        </div>
+        <select aria-label="My date format" disabled={busy} value={prefs.dateFormat ?? ''} onChange={(e) => void save({ dateFormat: (e.target.value || null) as DisplayPrefs['dateFormat'] })}>
+          <option value="">No preference</option>
+          {DATE_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+      </div>
+
+      <div className="pref-card">
+        <div>
+          <h3>My time format</h3>
+          <p className="muted small">When times are displayed, show them in this format. Example: {when(now).split(', ').pop()}</p>
+        </div>
+        <select aria-label="My time format" disabled={busy} value={prefs.timeFormat ?? ''} onChange={(e) => void save({ timeFormat: (e.target.value || null) as DisplayPrefs['timeFormat'] })}>
+          <option value="">No preference</option>
+          {TIME_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+      </div>
+
+      <div className="pref-card stacked">
+        <h3>My session timeout</h3>
+        <p className="muted small">Session timeouts are set by Bond and can&apos;t be changed here. A session ends when either limit is reached, whichever comes first.</p>
+        <dl className="pref-facts">
+          <div><dt>Absolute session timeout</dt><dd>{hours(policy.absoluteHours)}</dd></div>
+          <div><dt>Idle session timeout</dt><dd>{hours(policy.idleHours)} without activity</dd></div>
+        </dl>
+      </div>
     </>
   );
 }
