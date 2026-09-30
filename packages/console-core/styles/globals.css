@@ -108,6 +108,12 @@ td select { width: auto; padding: 4px 8px; font-size: 12px; }
 .icon-menu-item { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 6px; background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
 a.icon-menu-item { text-decoration: none; }
 .icon-menu-item:hover { background: var(--panel-2); }
+.apps-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 300px; padding: 10px; gap: 4px; }
+.app-tile { display: grid; justify-items: center; gap: 8px; padding: 14px 6px; border-radius: 10px; color: var(--text); font-size: 12.5px; font-weight: 600; text-align: center; text-decoration: none; overflow-wrap: anywhere; }
+.app-tile svg { color: var(--accent); }
+a.app-tile:hover { background: var(--panel-2); }
+.app-tile.disabled { opacity: .45; cursor: default; }
+@media (max-width: 380px) { .apps-panel { width: 250px; } }
 .icon-menu-empty { padding: 10px 8px; margin: 0; }
 
 /* charts */
