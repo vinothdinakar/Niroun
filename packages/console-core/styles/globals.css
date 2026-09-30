@@ -227,6 +227,9 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel-2); }
 .inline-form > div { flex: 1 1 180px; } .inline-form .end { flex: 0 0 auto; }
 .secret { margin-top: 14px; background: var(--panel-2); border: 1px solid var(--accent); border-radius: 10px; padding: 14px 16px; }
 .secret code { display: block; word-break: break-all; padding: 8px 10px; background: var(--bg); border-radius: 6px; margin: 8px 0; user-select: all; }
+.quickstart { margin: 0 0 4px; padding-left: 20px; display: grid; gap: 8px; }
+.inline-copy { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.inline-copy code { padding: 2px 8px; background: var(--bg); border-radius: 6px; word-break: break-all; user-select: all; }
 .secret pre { margin: 8px 0 0; padding: 10px; background: var(--bg); border-radius: 6px; overflow-x: auto; font: 12px/1.5 var(--mono); color: #cfe0ff; }
 
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }

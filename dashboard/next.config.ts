@@ -9,6 +9,8 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@bond/console-core'],
+  // The same address, for the Connect page's quickstart: agents call the API directly, so people need to see where it is.
+  env: { NEXT_PUBLIC_BOND_API_URL: API_URL },
   // The old Verification and Team pages now live inside Organization.
   async redirects() {
     return [

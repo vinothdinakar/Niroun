@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, errorMessage } from '../lib/api';
 import { when } from '../lib/format';
+import { apiBaseUrl, docsUrl } from '../lib/site';
 import { useSession } from '../lib/session';
 import { useCopy, useToast } from '../lib/toast';
 import type { Agent, Enrollment, Org } from '../lib/types';
@@ -14,6 +15,51 @@ import { EmptyRow, FormPanel, NotAllowed, Panel, StatusPill, Tier } from './ui';
 export function ConnectView() {
   const { has } = useSession();
   return has('enroll') ? <Connect /> : <NotAllowed />;
+}
+
+// A short, personal walk-through: where the API is, what to hand the agent's developer, and code with this organization
+// (and, once generated, the enrollment code) already in it. The full reference is the public docs page.
+function Quickstart({ orgName, code }: { orgName: string; code: string | null }) {
+  const copy = useCopy();
+  const api = apiBaseUrl();
+  const docs = docsUrl();
+  // JSON.stringify gives a valid JavaScript string whatever the name contains (an apostrophe in "Pat's Org", say)
+  const snippet = `import { BondClient } from '@bond/sdk'; // private preview
+
+const bond = await BondClient.register({
+  baseUrl: ${api ? JSON.stringify(api) : 'process.env.BOND_URL'},
+  name: "YourAgent",
+  owner: ${JSON.stringify(orgName)},
+  enrollmentCode: ${JSON.stringify(code ?? 'PASTE-YOUR-ENROLLMENT-CODE')},
+});
+
+console.log(await bond.me()); // your agent, linked to ${orgName}`;
+  return (
+    <FormPanel title="Quickstart">
+      <p className="muted">Put an agent under your organization in three steps.</p>
+      <ol className="quickstart">
+        <li><b>Generate an enrollment code</b> above. It works once and is shown once.</li>
+        <li>
+          <b>Give it to your agent&apos;s developer, with your API address.</b>{' '}
+          {api ? (
+            <span className="inline-copy"><code>{api}</code> <button className="btn ghost sm" type="button" onClick={() => copy(api)}>Copy address</button></span>
+          ) : (
+            <span className="muted">Ask your administrator for it.</span>
+          )}
+        </li>
+        <li><b>The agent registers with the code.</b> It then appears under Connected agents, owned by {orgName}, and your admins set its spending limits on its page.</li>
+      </ol>
+      <div className="secret">
+        <strong>Example{code ? ' (with your new code)' : ''}</strong>
+        <pre>{snippet}</pre>
+        <button className="btn ghost sm" type="button" onClick={() => copy(snippet)}>Copy example</button>
+      </div>
+      <p className="muted small">
+        {docs && <><a href={docs} target="_blank" rel="noopener noreferrer">Full API reference</a>: every endpoint, how requests are signed, and error codes. </>}
+        The SDK is shared during the private preview.
+      </p>
+    </FormPanel>
+  );
 }
 
 function Connect() {
@@ -64,14 +110,12 @@ function Connect() {
             <strong>Enrollment code for {result.orgName}</strong>
             <code>{result.code}</code>
             <button className="btn ghost sm" onClick={() => copy(result.code)}>Copy code</button>
-            <p className="muted small">Shown once. Single use, and it expires {when(result.expiresAt)}. Treat it like a password.</p>
-            <pre>{`const bond = await BondClient.register({
-  baseUrl, name: 'YourAgent', owner: '${result.orgName}',
-  enrollmentCode: '${result.code}',
-});`}</pre>
+            <p className="muted small">Shown once. Single use, and it expires {when(result.expiresAt)}. Treat it like a password. The example below now has it filled in.</p>
           </div>
         )}
       </FormPanel>
+
+      <Quickstart orgName={data.orgs.find((o) => o.id === selectedOrg)?.name ?? me?.user.orgName ?? 'Your organization'} code={result?.code ?? null} />
 
       <Panel title="Connected agents">
         <table>

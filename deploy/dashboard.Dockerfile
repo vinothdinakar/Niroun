@@ -4,6 +4,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 # Next bakes rewrites in at build time, so the API's URL is a build argument, not a runtime variable.
 ARG BOND_API_URL
 ENV BOND_API_URL=$BOND_API_URL
+# Where the header's Docs tile leads (the public docs page). Empty: the tile is greyed out.
+ARG NEXT_PUBLIC_DOCS_URL
+ENV NEXT_PUBLIC_DOCS_URL=$NEXT_PUBLIC_DOCS_URL
 COPY package.json package-lock.json ./
 COPY dashboard/package.json dashboard/
 COPY admin-app/package.json admin-app/
