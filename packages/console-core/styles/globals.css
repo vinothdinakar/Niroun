@@ -309,6 +309,55 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
 .fact-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .fact-btn:hover { color: var(--text); background: var(--panel); }
 
+/* wallet */
+.wallet-balances { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 16px; }
+.wallet-balances .panel { padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+.wallet-balances .hero { background: linear-gradient(180deg, var(--panel-2), var(--panel)); gap: 14px; }
+.wallet .big { font-size: 40px; font-weight: 700; letter-spacing: -1px; }
+.wallet .mid { font-size: 28px; font-weight: 700; }
+.wallet-balances p { margin: 0; }
+.wallet-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.wallet-side { display: grid; gap: 16px; }
+.wallet-side .panel h2.plain { padding-bottom: 10px; }
+.wallet-side p { margin: 0 0 10px; }
+.tx-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 18px; }
+.tx-head h2.plain { padding: 0; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { height: 32px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.chip.on { background: var(--panel-2); color: var(--text); border-color: var(--accent); }
+.tx-table th, .tx-table td { padding: 10px 14px; text-align: left; vertical-align: top; }
+.tx-table th.num, .tx-table td.num { text-align: right; }
+.tx-table td.pos { color: var(--green); }
+.tx-table td.struck { text-decoration: line-through; }
+.num { font-variant-numeric: tabular-nums; }
+.empty-state { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 40px 20px; border-top: 1px solid var(--line); }
+.empty-state p { margin: 0; max-width: 420px; }
+.callout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin: 0; }
+.callout p { margin: 0; }
+.limit { display: grid; gap: 6px; margin-bottom: 14px; }
+.limit-row { display: flex; justify-content: space-between; }
+.limit-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.limit-bar i { display: block; height: 100%; background: var(--accent); }
+.wallet-dialog { display: grid; gap: 12px; }
+.wallet-dialog h3 { font-size: 20px; }
+.wallet-dialog p { margin: 0; }
+.wallet-dialog .label-row { display: flex; justify-content: space-between; align-items: baseline; }
+.wallet-dialog .label-row label { margin: 0; }
+.money-input { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 10px; background: var(--bg); }
+.money-input span { font-size: 20px; color: var(--muted); }
+.money-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 0; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.method-list { display: grid; gap: 8px; border: 0; padding: 0; margin: 0; }
+.method-list legend { color: var(--muted); font-size: 13px; margin-bottom: 6px; padding: 0; }
+.method-opt { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; }
+.method-opt.on { border-color: var(--accent); }
+.method-opt input { width: auto; }
+.sums { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); }
+.sums > div { display: flex; justify-content: space-between; padding: 4px 0; }
+.sums dd { margin: 0; }
+.sums .total { font-weight: 700; font-size: 16px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; }
+.dest { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+@media (max-width: 900px) { .wallet-balances, .wallet-grid { grid-template-columns: 1fr; } .tx-table { display: block; overflow-x: auto; } }
+
 /* Email and Phone rows share one grid: a label column (name, with its status badge under it), the value, then the action. */
 .setting { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 16px 0; border-top: 1px solid var(--line); }
 .setting.first { margin-top: 14px; }

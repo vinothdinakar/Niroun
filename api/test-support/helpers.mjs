@@ -18,13 +18,13 @@ export async function dumpDb(app) {
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 
-export async function setup() {
+export async function setup(extraOptions = {}) {
   const clock = {
     offset: 0,
     now() { return Date.now() + this.offset; },
     advance(ms) { this.offset += ms; },
   };
-  const app = await testApp({ clock, signup: 'open', devMailbox: true });
+  const app = await testApp({ clock, signup: 'open', devMailbox: true, ...extraOptions });
   const port = await app.listen(0);
   const baseUrl = `http://127.0.0.1:${port}`;
   const now = () => clock.now();
@@ -76,11 +76,11 @@ export async function setup() {
   // Creates a person with a random strong password (never hard-coded) and returns their credentials + a sign-in helper.
   // Staff come fully enrolled in two-factor (as they must be); customers don't have it.
   let n = 0;
-  const makeUser = async ({ role, orgId, name = 'Test Person', enrolled = true }) => {
+  const makeUser = async ({ role, orgId, name = 'Test Person', enrolled = true, twoStep = false }) => {
     const email = `${role}-${++n}@test.example`;
     const password = 'Ts-' + randomBytes(14).toString('base64url');
     const staff = role === 'admin' || role === 'reviewer';
-    const totpSecret = staff && enrolled ? newSecret() : undefined;
+    const totpSecret = (staff && enrolled) || twoStep ? newSecret() : undefined;
     const recoveryCodes = totpSecret ? Array.from({ length: 3 }, newRecoveryCode) : [];
     const user = await app.accounts.createUser({ email, name, role, orgId, password, totpSecret, recoveryCodes });
     return { email, password, user, totpSecret, recoveryCodes, signIn: () => signIn(email, password, totpSecret) };

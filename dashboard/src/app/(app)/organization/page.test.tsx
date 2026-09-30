@@ -19,11 +19,11 @@ const routes = (permissions: string[], role = 'owner_admin') => ({
 afterEach(() => { window.location.hash = ''; });
 
 describe('OrganizationPage', () => {
-  it('offers Profile, Verification and Team to an org admin, opening on the profile', async () => {
+  it('offers Profile, Verification, Team and Wallet to an org admin, opening on the profile', async () => {
     mockApi(routes(['org_manage', 'request_verification', 'team_manage']));
     renderWithProviders(<OrganizationPage />);
     expect(await screen.findByLabelText('About')).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Verification', 'Team']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Verification', 'Team', 'Wallet']);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Verification' }));
     expect(await screen.findByText('1. Level')).toBeInTheDocument();
@@ -38,11 +38,11 @@ describe('OrganizationPage', () => {
     expect(screen.getByRole('tab', { name: 'Verification' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows a viewer only the profile, and ignores an address for a section they cannot use', async () => {
+  it('shows a viewer only the profile and the wallet (read-only), and ignores an address for a section they cannot use', async () => {
     window.location.hash = '#team';
     mockApi(routes([], 'owner_viewer'));
     renderWithProviders(<OrganizationPage />);
     expect(await screen.findByLabelText('About')).toHaveAttribute('readonly');
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Wallet']);
   });
 });

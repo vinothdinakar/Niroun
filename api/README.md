@@ -47,6 +47,9 @@ For local use, copy `.env.example` to `.env.local` and run `npm run start:local`
 | `BOND_DEV_MAILBOX` | off | `1` keeps emails and SMS texts in memory and exposes them at `/v1/dev/outbox` and `/v1/dev/sms-outbox`. Never in production |
 | `RESEND_API_KEY` | none | Sends email through [Resend](https://resend.com). Ignored when `BOND_DEV_MAILBOX=1`. Without it emails are printed to the console |
 | `BOND_MAIL_FROM` | `Bond <no-reply@assetslices.com>` | The From address; its domain must be verified in Resend |
+| `STRIPE_SECRET_KEY` | none | Turns on the organization wallet (deposits and withdrawals through Stripe). Use a test key (`sk_test_…`) for now. Without it the wallet shows as unavailable. A secret: Secret Manager in production |
+| `STRIPE_WEBHOOK_SECRET` | none | Signing secret of the Stripe webhook endpoint (`POST /v1/stripe/webhook`). Without it webhooks are refused |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | none | Signing secret of the second endpoint for connected-account events (payouts, onboarding); same URL |
 | `BOND_BOOTSTRAP_EMAIL` | none | Creates the first admin's one-time setup link when no admin exists |
 | `BOND_COOKIE_SECURE` | off | `1` when served over HTTPS |
 | `BOND_GCS_BUCKET` | none (local folder `data/uploads`) | Google Cloud Storage bucket for KYB/KYC evidence files. Credentials come from Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, or the runtime's service account). Without it the server stores files on local disk and warns: fine for dev, not for production |
@@ -64,6 +67,24 @@ Applicants upload a certificate of incorporation (businesses) or a photo ID (ind
 - **Storage:** bytes go to a private Google Cloud Storage bucket (`BOND_GCS_BUCKET`); MongoDB keeps only metadata and a SHA-256. Use a **private bucket with uniform bucket-level access and public access prevention**, and give the service account only object create/read/delete on it. Nothing is ever served from a bucket URL: downloads (`GET /v1/console/verification-documents/:id`) go through the API, are authorised per request (the uploading org's admin, or staff), and every staff view is written to the audit log.
 - **Retention:** an upload never attached to an application is deleted after 24 hours. Files of a decided application (approved or rejected) are deleted `BOND_DOC_RETENTION_DAYS` after the decision. Pending applications are never purged. A sweep runs on the same timer as the other sweeps; the bytes are deleted and the metadata row is kept, marked `purgedAt`, so the history still shows what was submitted. Add a bucket **lifecycle rule** (e.g. delete objects older than retention + a margin) as a backstop in case a purge fails.
 - **CSRF:** cookie-authenticated writes are normally `application/json` only. The upload route additionally accepts `application/pdf`, `image/png` and `image/jpeg` bodies, which an HTML form cannot send and a cross-site `fetch` could only send after a CORS preflight the API doesn't grant.
+
+## The organization wallet (Stripe)
+
+**Organization → Wallet** is where an organization puts money in and takes it out. **Deposits** use Stripe Checkout (card, or bank transfer/ACH); **withdrawals** use Stripe Connect (Bond moves the money to the organization's own connected Stripe account and pays it out to their bank). Everyone in the organization can read the wallet; only the owner (`wallet_manage`) can deposit, withdraw or set up payouts. It is in **Stripe test mode** for now: no real money moves.
+
+- **The balance is a ledger.** Every change is an entry in the organization's hash-chained `wallet_ledger` (the same chain the agents' logs use), and the balance is the last entry. Two requests racing for the same money collide on the entry's sequence number and one retries, so it can never overdraw or fork. `wallet_tx` is the readable list (one document per deposit or withdrawal, with its status and Stripe ids).
+- **A deposit is credited only when Stripe says the money arrived**: a signed webhook (`checkout.session.completed`, or `…async_payment_succeeded` for a bank debit that was clearing), or a check made when the person returns to the console. Each step is a compare-and-set on the status, so a repeated event does nothing twice, and a session whose amount doesn't match what was asked is refused.
+- **A withdrawal is debited at once** (the money is reserved before Stripe is asked to send it), needs two-step verification on the account and a live authenticator code, payouts set up with Stripe, enough balance, and stays inside the daily limit. Stripe then gets a transfer and a payout (one each per withdrawal, with idempotency keys). `payout.paid` completes it; `payout.failed`, or any failure sending it, puts the money back on the ledger and reverses the transfer.
+- **The customer pays Stripe's fee**, worked out so the wallet gets exactly the amount chosen (card 2.9% + 30¢; ACH 0.8%, capped at $5): `domain/wallet.ts`, mirrored in the console's `lib/wallet.ts` to show the fee while typing. Limits: $10 minimum, $25,000 per deposit and per day, $10,000 withdrawn per day.
+- **Money reserved for open deals** (`hold`/`release` entries) is modelled but not wired to deals yet: the "Held" figure is $0.00 until deals reserve money from the wallet.
+
+Endpoints (all under `/v1/console/wallet`, scoped to the caller's own organization): `GET /` summary, `GET /transactions`, `POST /deposits`, `POST /deposits/:id/sync`, `POST /payouts/setup`, `POST /withdrawals`. Stripe calls `POST /v1/stripe/webhook` (public, trusted only by its signature).
+
+**Setting up Stripe (test mode)**
+1. In the Stripe dashboard turn on **Connect** (Express accounts, US). Copy your test **secret key** into `STRIPE_SECRET_KEY`.
+2. Locally: `stripe listen --forward-to localhost:4100/v1/stripe/webhook --forward-connect-to localhost:4100/v1/stripe/webhook`, and put the `whsec_…` it prints in `STRIPE_WEBHOOK_SECRET`. Hosted: add two webhook endpoints at `https://<api>/v1/stripe/webhook`, one for your account's events (`checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`) and one **for connected accounts** (`payout.paid`, `payout.failed`, `payout.canceled`, `account.updated`), each with its own signing secret.
+3. Withdrawals draw on Bond's own Stripe balance, so top the test balance up first: pay once with the test card `4000 0000 0000 0077`, which lands in the available balance immediately. Test cards: `4242 4242 4242 4242`.
+4. Restart the API. Then Organization → Wallet works: deposit, set up payouts (Stripe's test onboarding accepts dummy details), withdraw.
 
 ## Signing up (agent owners)
 

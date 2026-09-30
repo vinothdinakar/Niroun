@@ -13,14 +13,15 @@ export const OWNER_ROLES: Role[] = ['owner_admin', 'owner_viewer'];
 
 export type Permission =
   | 'stats' | 'orgs' | 'audit' | 'verify' | 'sweep' | 'resolve'
-  | 'agents_manage' | 'agents_suspend' | 'team_manage' | 'enroll' | 'request_verification' | 'org_manage';
+  | 'agents_manage' | 'agents_suspend' | 'team_manage' | 'enroll' | 'request_verification' | 'org_manage' | 'wallet_manage';
 
 // Reading is scoped by role (staff: everything; owners: their own company) and is not a permission.
 // These are the actions. For non-staff, every action is additionally limited to their own org.
 const PERMS: Record<Role, Set<Permission>> = {
   admin: new Set<Permission>(['stats', 'orgs', 'audit', 'verify', 'sweep', 'resolve', 'agents_manage', 'agents_suspend', 'team_manage', 'enroll', 'org_manage']),
   reviewer: new Set<Permission>(['stats', 'resolve', 'agents_suspend']),
-  owner_admin: new Set<Permission>(['agents_manage', 'agents_suspend', 'team_manage', 'enroll', 'request_verification', 'org_manage']),
+  // wallet_manage (deposit, withdraw, set up payouts) is the organization owner's alone; viewers can read the wallet
+  owner_admin: new Set<Permission>(['agents_manage', 'agents_suspend', 'team_manage', 'enroll', 'request_verification', 'org_manage', 'wallet_manage']),
   owner_viewer: new Set<Permission>(),
 };
 

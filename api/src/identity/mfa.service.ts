@@ -146,6 +146,23 @@ export class MfaService {
     return { codes, hashes: codes.map((x) => sha256(normalizeRecovery(x))) };
   }
 
+  /**
+   * Proves the person at the keyboard holds their authenticator right now, before something sensitive (a withdrawal).
+   * The code is single-use (its time step is recorded) and wrong ones are rate limited, like every other two-factor check.
+   */
+  async confirmCode(user: User, code: unknown): Promise<void> {
+    if (!user.totp?.enabledAt) throw new HttpError(409, 'TWO_STEP_REQUIRED', 'Turn on two-step verification in your account before you do this');
+    if (this.rate.isLocked(`t:${user.id}`, ACCOUNT_MAX_FAILS)) {
+      throw new HttpError(429, 'TOO_MANY_ATTEMPTS', 'Too many incorrect codes. Try again in 15 minutes.');
+    }
+    const step = verifyTotp(this.secretOf(user.totp), code, this.clock.now(), user.totp.lastStep);
+    const won = step === null ? 0 : await this.mongo.users.updateOne({ _id: user.id as never, 'totp.lastStep': user.totp.lastStep }, { $set: { 'totp.lastStep': step } });
+    if (!won) {
+      this.rate.recordFailure(`t:${user.id}`);
+      throw new HttpError(401, 'INVALID_CODE', 'That code is incorrect.');
+    }
+  }
+
   /** Replace all recovery codes. Needs a live authenticator code, so a stolen session alone can't do it. */
   async regenerateRecovery(user: User, code: unknown): Promise<string[]> {
     if (!user.totp?.enabledAt) throw badRequest('NOT_ENROLLED', 'Two-factor is not set up for this account');

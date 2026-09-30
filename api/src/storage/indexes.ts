@@ -30,6 +30,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
     db.collection('outcomes').createIndex({ agentId: 1 }, { name: 'outcomes_agent' }),
     db.collection('outcomes').createIndex({ agentId: 1, cp: 1, kind: 1 }, { name: 'outcomes_pair' }),
 
+    // the wallet's ledger, like the agents': _id is `${orgId}:${seq}`; the `agentId` field of each entry holds the org id
+    db.collection('wallet_ledger').createIndex({ agentId: 1, seq: 1 }, { unique: true, name: 'wallet_ledger_org_seq_unique' }),
+    db.collection('wallet_tx').createIndex({ orgId: 1, createdAt: -1 }, { name: 'wallet_tx_org' }),
+    db.collection('wallet_tx').createIndex({ 'stripe.sessionId': 1 }, { name: 'wallet_tx_session', sparse: true }),
+    db.collection('wallet_tx').createIndex({ 'stripe.payoutId': 1 }, { name: 'wallet_tx_payout', sparse: true }),
+    db.collection('wallet_accounts').createIndex({ stripeAccountId: 1 }, { unique: true, name: 'wallet_accounts_stripe_unique' }),
+
     db.collection('audit').createIndex({ ts: -1 }, { name: 'audit_recent' }),
 
     db.collection('verification_requests').createIndex({ orgId: 1, submittedAt: -1 }, { name: 'verification_requests_org' }),
