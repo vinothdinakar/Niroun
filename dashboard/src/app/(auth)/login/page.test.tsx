@@ -12,7 +12,7 @@ describe('dashboard LoginPage', () => {
   it('offers a signup link once the API says company signup is open', async () => {
     mockApi({ '/v1/auth/me': mockError(401), '/v1/health': { ok: true, signup: 'open', devMailbox: false } });
     renderWithProviders(<LoginPage />);
-    expect(await screen.findByRole('link', { name: /Create an account for your company/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /^Create an account$/i })).toBeInTheDocument();
   });
 
   it('offers no signup link when it is closed', async () => {

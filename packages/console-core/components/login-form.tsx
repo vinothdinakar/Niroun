@@ -66,7 +66,7 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
       {mode === 'staff' ? (
         <p className="muted small">Accounts are created by invitation. Ask another admin for an invite link.</p>
       ) : health?.signup === 'open' ? (
-        <p className="muted small">New to Bond? <Link href="/signup">Create an account for your company</Link></p>
+        <p className="muted small">New to Bond? <Link href="/signup">Create an account</Link></p>
       ) : (
         <p className="muted small">Accounts are created by invitation. Ask your administrator for an invite link.</p>
       )}
