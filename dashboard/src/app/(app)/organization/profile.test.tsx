@@ -31,6 +31,30 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled());
   });
 
+  it('lets an admin rename the organization and set its type before verification starts', async () => {
+    const fresh = { ...org, name: 'pat’s organization', verification: 0 };
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['org_manage'] },
+      '/v1/console/orgs': { orgs: [fresh] },
+      '/v1/console/orgs/org_1/profile': { ...fresh, name: 'Pat Freelance', accountType: 'individual' },
+    });
+    renderWithProviders(<ProfilePage />);
+    const type = await screen.findByLabelText('Account type');
+    expect(type).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Pat Freelance' } });
+    fireEvent.change(type, { target: { value: 'individual' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true));
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!;
+    expect(JSON.parse(String(put[1]?.body))).toMatchObject({ name: 'Pat Freelance', accountType: 'individual' });
+  });
+
+  it('locks the account type once verification has started', async () => {
+    mockApi({ '/v1/auth/me': { user: baseUser, permissions: ['org_manage'] }, '/v1/console/orgs': { orgs: [org] } });
+    renderWithProviders(<ProfilePage />);
+    expect(await screen.findByLabelText('Account type')).toBeDisabled();
+  });
+
   it('shows the profile read-only to someone who cannot manage the org', async () => {
     mockApi({
       '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer' }, permissions: [] },

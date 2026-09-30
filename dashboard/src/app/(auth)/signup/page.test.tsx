@@ -8,72 +8,35 @@ import SignupPage from './page';
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }), usePathname: () => '/signup' }));
 
-// Fills in every required field except the two passwords, which each test sets for itself.
-async function fillCommonFields(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText('Your name'), 'Sam Signup');
-  await user.type(screen.getByLabelText('Work email'), 'sam@signup-test.example');
-  await user.type(screen.getByLabelText('Company name'), 'Signup Test Co');
-}
+const open = { '/v1/auth/me': mockError(401), '/v1/health': { ok: true, signup: 'open', devMailbox: false } };
 
 describe('SignupPage', () => {
   it('shows a closed message instead of the form when the API says signup is closed', async () => {
     mockApi({ '/v1/auth/me': mockError(401), '/v1/health': { ok: true, signup: 'closed', devMailbox: false } });
     renderWithProviders(<SignupPage />);
     expect(await screen.findByText(/Sign-up is closed/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText('Company name')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
   });
 
-  it('refuses to submit when the two passwords do not match', async () => {
-    mockApi({ '/v1/auth/me': mockError(401), '/v1/health': { ok: true, signup: 'open', devMailbox: false } });
-    const user = userEvent.setup();
+  it('asks only for an email and a password (plus the terms), with no name, company or account type', async () => {
+    mockApi(open);
     renderWithProviders(<SignupPage />);
-    await fillCommonFields(user);
-    await user.type(screen.getByLabelText('Password (12+ characters)'), 'a-strong-password');
-    await user.type(screen.getByLabelText('Confirm password'), 'a-different-password');
-    await user.click(screen.getByRole('button', { name: 'Create account' }));
-    expect(await screen.findByText(/two passwords do not match/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password (12+ characters)')).toBeInTheDocument();
+    for (const gone of ['Your name', 'Company name', 'Confirm password']) expect(screen.queryByLabelText(gone)).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
-  it('posts the form and moves on to check-email once the terms are accepted', async () => {
-    const fetchMock = mockApi({
-      '/v1/auth/me': mockError(401),
-      '/v1/health': { ok: true, signup: 'open', devMailbox: false },
-      '/v1/signup': {},
-    });
+  it('posts just the email and password and moves on to check-email once the terms are accepted', async () => {
+    const fetchMock = mockApi({ ...open, '/v1/signup': {} });
     const user = userEvent.setup();
     renderWithProviders(<SignupPage />);
-    await fillCommonFields(user);
+    await user.type(await screen.findByLabelText('Email'), 'sam@signup-test.example');
     await user.type(screen.getByLabelText('Password (12+ characters)'), 'a-strong-password');
-    await user.type(screen.getByLabelText('Confirm password'), 'a-strong-password');
     await user.click(screen.getByRole('checkbox', { name: /accept the preview terms/i }));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/signup/check-email'));
-    expect(fetchMock).toHaveBeenCalledWith('/v1/signup', expect.objectContaining({ method: 'POST' }));
     const body = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body));
-    expect(body).toMatchObject({ accountType: 'business', company: 'Signup Test Co' });
-  });
-
-  it('switching to Individual hides the company field and sends the person\'s own name as the org name', async () => {
-    const fetchMock = mockApi({
-      '/v1/auth/me': mockError(401),
-      '/v1/health': { ok: true, signup: 'open', devMailbox: false },
-      '/v1/signup': {},
-    });
-    const user = userEvent.setup();
-    renderWithProviders(<SignupPage />);
-
-    await user.click(screen.getByRole('radio', { name: 'Individual' }));
-    expect(screen.queryByLabelText('Company name')).not.toBeInTheDocument();
-
-    await user.type(screen.getByLabelText('Your name'), 'Jordan Individual');
-    await user.type(screen.getByLabelText('Work email'), 'jordan@signup-test.example');
-    await user.type(screen.getByLabelText('Password (12+ characters)'), 'a-strong-password');
-    await user.type(screen.getByLabelText('Confirm password'), 'a-strong-password');
-    await user.click(screen.getByRole('checkbox', { name: /accept the preview terms/i }));
-    await user.click(screen.getByRole('button', { name: 'Create account' }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/signup/check-email'));
-
-    const body = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body));
-    expect(body).toMatchObject({ accountType: 'individual', company: 'Jordan Individual' });
+    expect(body).toEqual({ email: 'sam@signup-test.example', password: 'a-strong-password', acceptTerms: true, website: '' });
   });
 });

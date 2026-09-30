@@ -54,7 +54,8 @@ export function Onboarding({ overview, org }: { overview: OwnerOverview; org: Or
       <h3>Welcome, {org.name}</h3>
       <div className="muted">A few steps to get your agents trading safely.</div>
       <ol>
-        <li className="done">{org.accountType === 'individual' ? 'Account' : 'Company account'} created and email verified</li>
+        <li className="done">Account created and email verified</li>
+        <li>Set your name and organization details{has('org_manage') && <> <Link className="btn ghost sm" href="/organization">Open Organization</Link></>}</li>
         <li className={overview.agents > 0 ? 'done' : ''}>
           Connect your first agent
           {overview.agents === 0 && has('enroll') && <> <Link className="btn primary sm" href="/connect">Generate an enrollment code</Link></>}

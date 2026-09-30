@@ -17,8 +17,8 @@ const FIELDS = [
   { key: 'industry', label: 'Industry', max: 80, placeholder: 'Logistics' },
 ] as const;
 
-type Draft = Record<(typeof FIELDS)[number]['key'], string>;
-const draftOf = (org: Org): Draft => ({ about: org.about ?? '', website: org.website ?? '', contactEmail: org.contactEmail ?? '', country: org.country ?? '', industry: org.industry ?? '' });
+type Draft = Record<(typeof FIELDS)[number]['key'], string> & { name: string; accountType: 'individual' | 'business' };
+const draftOf = (org: Org): Draft => ({ name: org.name, accountType: org.accountType, about: org.about ?? '', website: org.website ?? '', contactEmail: org.contactEmail ?? '', country: org.country ?? '', industry: org.industry ?? '' });
 
 // The organization's own profile: who they are, how to reach them. Admins edit it; everyone else in the org reads it.
 export function OrgProfileView() {
@@ -36,7 +36,7 @@ function Profile({ initial }: { initial: Org }) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const dirty = FIELDS.some((f) => draft[f.key].trim() !== (org[f.key] ?? ''));
+  const dirty = FIELDS.some((f) => draft[f.key].trim() !== (org[f.key] ?? '')) || draft.name.trim() !== org.name || draft.accountType !== org.accountType;
   const level = org.verification || 0;
 
   async function save(e: FormEvent) {
@@ -65,6 +65,14 @@ function Profile({ initial }: { initial: Org }) {
           {org.accountType === 'individual' ? 'Individual account' : 'Business account'} · member since {when(org.createdAt)}
         </p>
         <form onSubmit={save}>
+          <label htmlFor="op-name">Organization name</label>
+          <input id="op-name" minLength={2} maxLength={80} required value={draft.name} readOnly={!canEdit} onChange={(e) => setDraft((s) => ({ ...s, name: e.target.value }))} />
+          <label htmlFor="op-type">Account type</label>
+          <select id="op-type" value={draft.accountType} disabled={!canEdit || level > 0} onChange={(e) => setDraft((s) => ({ ...s, accountType: e.target.value as Draft['accountType'] }))}>
+            <option value="business">Business (a company or team)</option>
+            <option value="individual">Individual (just me)</option>
+          </select>
+          <p className="muted small">{level > 0 ? 'The type is fixed once verification has started. Contact Bond support to change it.' : 'This decides what we ask for when you apply for verification. Set it before you apply.'}</p>
           {FIELDS.map((f) => (
             <div key={f.key}>
               <label htmlFor={`op-${f.key}`}>{f.label}</label>
