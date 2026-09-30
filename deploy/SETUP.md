@@ -1,7 +1,8 @@
 # Deploying Bond to Google Cloud
 
-`.github/workflows/deploy.yml` tests every push and, on `main`, deploys four Cloud Run services
-(`niroun-api`, `niroun-dashboard`, `niroun-admin-app`, `niroun-homepage`). Do this setup once.
+Each app has its own workflow, `.github/workflows/deploy-<app>.yml`, which tests that app and deploys it to Cloud Run
+as `niroun-api`, `niroun-dashboard`, `niroun-admin-app` or `niroun-homepage`. They share `_deploy.yml`. `ci.yml` runs
+all tests on pull requests. Do this setup once.
 
 Replace the values in the first block, then run the rest in a shell with `gcloud` signed in as a project owner.
 
@@ -86,5 +87,10 @@ until the services do. So:
 
 ## Deploying one app at a time
 
-GitHub > Actions > CI/CD > Run workflow, then pick `api`, `dashboard`, `admin-app` or `homepage` (or `all`).
-Deploy `api` first; the consoles need it to exist. Pushes to `main` deploy `all`.
+Each app deploys on its own:
+- **Automatically** when a push to `main` changes that app's folder (the dashboard and admin app also redeploy when
+  `packages/console-core` changes).
+- **By hand:** GitHub > Actions > pick "Deploy niroun-api" (or the other app) > Run workflow.
+
+Deploy `niroun-api` first; the dashboard and admin app read its URL when they build and fail with a clear message
+if it doesn't exist yet.

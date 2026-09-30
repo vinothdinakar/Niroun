@@ -1,0 +1,27 @@
+name: Deploy niroun-api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'deploy/api.Dockerfile'
+      - '.github/workflows/deploy-api.yml'
+      - '.github/workflows/_deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation: no long-lived GCP key stored in GitHub
+
+concurrency:
+  group: deploy-niroun-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app: api
+      test-command: npm run api:test
+      mongo: true

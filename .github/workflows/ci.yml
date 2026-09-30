@@ -1,0 +1,25 @@
+# Runs every app's tests on pull requests. Nothing is deployed from here.
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm --prefix api ci
+      - run: npm --prefix homepage ci
+      - run: docker compose -f api/docker-compose.yml up -d --wait
+      - run: npm test

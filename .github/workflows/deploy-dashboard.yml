@@ -1,0 +1,29 @@
+name: Deploy niroun-dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dashboard/**'
+      - 'packages/console-core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'deploy/dashboard.Dockerfile'
+      - '.github/workflows/deploy-dashboard.yml'
+      - '.github/workflows/_deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-niroun-dashboard
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app: dashboard
+      test-command: npm run console-core:test && npm run dashboard:test

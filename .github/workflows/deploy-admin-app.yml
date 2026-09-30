@@ -1,0 +1,29 @@
+name: Deploy niroun-admin-app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'admin-app/**'
+      - 'packages/console-core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'deploy/admin-app.Dockerfile'
+      - '.github/workflows/deploy-admin-app.yml'
+      - '.github/workflows/_deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-niroun-admin-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app: admin-app
+      test-command: npm run console-core:test && npm run admin:test

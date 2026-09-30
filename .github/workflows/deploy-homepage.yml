@@ -1,0 +1,27 @@
+name: Deploy niroun-homepage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'homepage/**'
+      - 'deploy/homepage.Dockerfile'
+      - 'deploy/nginx.conf'
+      - '.github/workflows/deploy-homepage.yml'
+      - '.github/workflows/_deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-niroun-homepage
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app: homepage
+      test-command: npm run homepage:test
