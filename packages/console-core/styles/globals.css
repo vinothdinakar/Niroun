@@ -282,10 +282,17 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
 .row-start { display: flex; gap: 10px; margin-top: 14px; }
 .inline-field { display: flex; gap: 10px; }
 .inline-field .btn { flex: none; }
-.setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+/* Email and Phone rows share one grid: a label column (name, with its status badge under it), the value, then the action. */
+.setting { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 16px 0; border-top: 1px solid var(--line); }
 .setting.first { margin-top: 14px; }
 .setting p { margin: 2px 0 0; }
 .setting .btn, .setting .pill { flex: none; }
+.setting-label { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.setting-body { min-width: 0; }
+.setting-status { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.setting-body.wide { grid-column: 2 / -1; }
+.setting-body .setting-value { margin: 0; overflow-wrap: anywhere; }
+.setting .inline-field { max-width: 380px; }
 .warn { color: var(--amber); }
 @media (max-width: 900px) { .acct-layout { grid-template-columns: 1fr; } .acct-menu { display: flex; overflow-x: auto; gap: 8px; } .acct-menu [role="tablist"] { display: flex; gap: 4px; } .acct-menu button { white-space: nowrap; } .acct-menu .acct-signout { margin: 0; border: 0; padding: 9px 12px; } .acct-hero { flex-wrap: wrap; } }
-@media (max-width: 520px) { .acct-meta { width: 100%; justify-content: space-between; } .setting { flex-wrap: wrap; } .inline-field { flex-direction: column; } }
+@media (max-width: 520px) { .acct-meta { width: 100%; justify-content: space-between; } .setting { grid-template-columns: 1fr; } .setting-body.wide { grid-column: auto; } .setting .inline-field { max-width: none; } .inline-field { flex-direction: column; } }

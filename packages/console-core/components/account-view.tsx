@@ -6,7 +6,8 @@ import { ROLE_LABEL, describeUserAgent, when } from '../lib/format';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import type { Me, SessionRow } from '../lib/types';
-import { PasswordDialog, RecoveryDialog } from './account-dialogs';
+import { RecoveryDialog } from './account-dialogs';
+import { PasswordInput } from './ui';
 import { useLoaderShim } from './use-loader-shim';
 
 const initials = (name: string): string =>
@@ -101,21 +102,19 @@ function ProfileSection({ me }: { me: Me }) {
   const { signedIn } = useSession();
   const toast = useToast();
   const u = me.user;
-  const [name, setName] = useState(u.name);
   const [legalFirstName, setLegalFirstName] = useState(u.legalFirstName ?? '');
   const [legalLastName, setLegalLastName] = useState(u.legalLastName ?? '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const dirty = name.trim() !== u.name || legalFirstName.trim() !== (u.legalFirstName ?? '') || legalLastName.trim() !== (u.legalLastName ?? '');
+  const dirty = legalFirstName.trim() !== (u.legalFirstName ?? '') || legalLastName.trim() !== (u.legalLastName ?? '');
 
   async function save(e: FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      const next = await api<Me>('PUT', '/v1/auth/me', { name, legalFirstName, legalLastName });
+      const next = await api<Me>('PUT', '/v1/auth/me', { name: u.name, legalFirstName, legalLastName }) // the API still wants the name; it is no longer edited here;
       signedIn(next);
-      setName(next.user.name);
       setLegalFirstName(next.user.legalFirstName ?? '');
       setLegalLastName(next.user.legalLastName ?? '');
       toast('Profile saved');
@@ -129,10 +128,7 @@ function ProfileSection({ me }: { me: Me }) {
   return (
     <>
       <h2 className="plain">Profile</h2>
-      <p className="muted small">How your name appears to your team.</p>
       <form onSubmit={save}>
-        <label htmlFor="acct-name">Name</label>
-        <input id="acct-name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="two">
           <div>
             <label htmlFor="acct-legal-first">Legal first name</label>
@@ -146,10 +142,10 @@ function ProfileSection({ me }: { me: Me }) {
         <p className="muted small">Your legal name as it appears on official documents. Used for verification and compliance — not shown to your team.</p>
         <p className="form-error" role="alert">{error}</p>
         <div className="row-end">
-          <button className="btn primary" type="submit" disabled={busy || !name.trim() || !dirty}>Save</button>
+          <button className="btn primary" type="submit" disabled={busy || !dirty}>Save</button>
         </div>
       </form>
-      <p className="muted small">{FIXED_NOTE[u.role]}</p>
+      {u.role !== 'owner_admin' && <p className="muted small">{FIXED_NOTE[u.role]}</p>}
 
       <EmailSection me={me} />
       <PhoneSection me={me} />
@@ -178,16 +174,21 @@ function EmailSection({ me }: { me: Me }) {
 
   return (
     <div className="setting first">
-      <div>
-        <b>Email {u.emailVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>}</b>
-        <p className="muted small">{u.email}</p>
+      <div className="setting-label">
+        <b>Email</b>
+      </div>
+      <div className="setting-body">
+        <p className="setting-value">{u.email}</p>
         {!u.emailVerified && sent && <p className="muted small">Check your inbox — the link works once and expires in 24 hours.</p>}
       </div>
-      {!u.emailVerified && (
-        <button className="btn ghost" type="button" disabled={busy} onClick={() => void sendLink()}>
-          {busy ? 'Sending…' : sent ? 'Resend link' : 'Verify email'}
-        </button>
-      )}
+      <div className="setting-status">
+        {u.emailVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>}
+        {!u.emailVerified && (
+          <button className="btn ghost" type="button" disabled={busy} onClick={() => void sendLink()}>
+            {busy ? 'Sending…' : sent ? 'Resend link' : 'Verify email'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -255,8 +256,10 @@ function PhoneSection({ me }: { me: Me }) {
 
   return (
     <div className="setting">
-      <div>
-        <b>Phone {u.phone && (u.phoneVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>)}</b>
+      <div className="setting-label">
+        <b>Phone</b>
+      </div>
+      <div className="setting-body">
         <form className="inline-field" onSubmit={dirty ? savePhone : (e) => e.preventDefault()}>
           <input
             aria-label="Phone number" placeholder="+14155550123" value={phone}
@@ -284,20 +287,52 @@ function PhoneSection({ me }: { me: Me }) {
         )}
         <p className="form-error" role="alert">{error}</p>
       </div>
+      <div className="setting-status">
+        {!u.phone ? <span className="pill gray">Not added</span> : u.phoneVerified ? <span className="pill green">Verified</span> : <span className="pill amber">Not verified</span>}
+      </div>
     </div>
   );
 }
 
+// The change-password form sits right on the page (no popup).
 function PasswordSection() {
-  const [open, setOpen] = useState(false);
+  const toast = useToast();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      await api('POST', '/v1/auth/change-password', { current, next });
+      setCurrent('');
+      setNext('');
+      toast('Password changed. Other devices were signed out.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
-      <h2 className="plain">Password</h2>
+      <h2 className="plain">Change password</h2>
       <p className="muted small">Use a long, unique password. Changing it signs you out of every other device.</p>
-      <div className="row-start">
-        <button className="btn ghost" type="button" onClick={() => setOpen(true)}>Change password</button>
-      </div>
-      <PasswordDialog open={open} onClose={() => setOpen(false)} />
+      <form onSubmit={submit}>
+        <label htmlFor="pw-cur">Current password</label>
+        <PasswordInput id="pw-cur" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />
+        <label htmlFor="pw-new">New password (12+ characters)</label>
+        <PasswordInput id="pw-new" autoComplete="new-password" minLength={12} required value={next} onChange={(e) => setNext(e.target.value)} />
+        <p className="form-error" role="alert">{error}</p>
+        <p className="muted small">You&apos;ll stay signed in here; every other device is signed out.</p>
+        <div className="row-end">
+          <button className="btn primary" type="submit" disabled={busy || !current || next.length < 12}>Change password</button>
+        </div>
+      </form>
     </>
   );
 }
