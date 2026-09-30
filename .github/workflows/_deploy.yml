@@ -76,11 +76,15 @@ jobs:
               # The consoles bake the API's URL in at build time, so the API must exist first.
               API_URL=$(gcloud run services describe niroun-api --region "$REGION" --format 'value(status.url)' || true)
               [ -n "$API_URL" ] || { echo "::error::niroun-api isn't deployed yet; deploy it first."; exit 1; }
-              build --build-arg BOND_API_URL="$API_URL"
+              # The header's Docs tile leads to the homepage's /docs, if the homepage is deployed (otherwise the tile is greyed out).
+              HOME_URL=$(gcloud run services describe niroun-homepage --region "$REGION" --format 'value(status.url)' || true)
+              build --build-arg BOND_API_URL="$API_URL" --build-arg NEXT_PUBLIC_DOCS_URL="${HOME_URL:+$HOME_URL/docs}"
               deploy
               ;;
             homepage)
-              build
+              # The docs show the API's real address, when the API is deployed (otherwise they say local development).
+              API_URL=$(gcloud run services describe niroun-api --region "$REGION" --format 'value(status.url)' || true)
+              build --build-arg VITE_BOND_API_URL="$API_URL"
               deploy
               ;;
             *)
