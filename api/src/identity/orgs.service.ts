@@ -8,7 +8,7 @@ import { AccountType, Org, User, Verification } from '../storage/db.types';
 import { Actor } from './identity.types';
 import { can, isStaff } from '../domain/roles';
 
-type ProfileField = 'about' | 'website' | 'contactEmail' | 'country' | 'industry';
+type ProfileField = 'about' | 'website' | 'country' | 'industry';
 const isHttpUrl = (s: string): boolean => {
   try {
     return ['http:', 'https:'].includes(new URL(s).protocol);
@@ -19,7 +19,6 @@ const isHttpUrl = (s: string): boolean => {
 const PROFILE_FIELDS: Record<ProfileField, { max: number; check?: (s: string) => boolean; error?: string }> = {
   about: { max: 500 },
   website: { max: 200, check: isHttpUrl, error: 'website must be a full http(s) address, e.g. https://example.com' },
-  contactEmail: { max: 120, check: (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), error: 'contactEmail must be an email address' },
   country: { max: 60 },
   industry: { max: 80 },
 };

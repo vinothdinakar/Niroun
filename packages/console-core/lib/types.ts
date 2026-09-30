@@ -150,7 +150,6 @@ export interface Org {
   createdAt: number;
   about?: string;
   website?: string;
-  contactEmail?: string;
   country?: string;
   industry?: string;
 }

@@ -171,7 +171,6 @@ export interface Org {
   // Public-facing profile, edited by the org's own admins. All optional; an empty value clears the field.
   about?: string;
   website?: string;
-  contactEmail?: string;
   country?: string;
   industry?: string;
 }

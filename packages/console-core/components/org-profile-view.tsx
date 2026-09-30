@@ -12,13 +12,12 @@ import { FormPanel } from './ui';
 const FIELDS = [
   { key: 'about', label: 'About', max: 500, multiline: true, placeholder: 'What your organization does and what its agents are for' },
   { key: 'website', label: 'Website', max: 200, placeholder: 'https://example.com' },
-  { key: 'contactEmail', label: 'Contact email', max: 120, placeholder: 'hello@example.com' },
   { key: 'country', label: 'Country', max: 60, placeholder: 'Canada' },
   { key: 'industry', label: 'Industry', max: 80, placeholder: 'Logistics' },
 ] as const;
 
 type Draft = Record<(typeof FIELDS)[number]['key'], string>;
-const draftOf = (org: Org): Draft => ({ about: org.about ?? '', website: org.website ?? '', contactEmail: org.contactEmail ?? '', country: org.country ?? '', industry: org.industry ?? '' });
+const draftOf = (org: Org): Draft => ({ about: org.about ?? '', website: org.website ?? '', country: org.country ?? '', industry: org.industry ?? '' });
 
 // The organization's own profile: who they are, how to reach them. Admins edit it; everyone else in the org reads it.
 export function OrgProfileView() {
