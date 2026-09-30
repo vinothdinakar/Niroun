@@ -71,7 +71,7 @@ gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER \
 until the services do. So:
 
 1. Set both to a placeholder, e.g. `gh variable set BOND_PUBLIC_URL --body https://placeholder.invalid`, and
-   likewise `BOND_STAFF_URL`. Create a `production` environment in GitHub (Settings > Environments); add
+   likewise `BOND_STAFF_URL`. Create a `dev` environment in GitHub (Settings > Environments); add
    required reviewers there if you want approval before each deploy.
 2. Push to `main` (or run the workflow manually). All four services are created.
 3. Read the real URLs: `gcloud run services list --region $REGION`. Set the two variables to the dashboard and
