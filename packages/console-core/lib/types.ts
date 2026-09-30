@@ -224,3 +224,33 @@ export interface InviteResult {
 export interface Enrollment { code: string; orgName: string; expiresAt: number }
 
 export interface OutboxMail { to: string; subject: string; text: string; link?: string }
+
+// ---- organization wallet ----
+export type WalletSummary =
+  | { enabled: false }
+  | {
+      enabled: true;
+      testMode: boolean;
+      balance: { availableCents: number; heldCents: number; inTransitCents: number; pendingDepositsCents: number };
+      payouts: { status: 'not_setup' | 'incomplete' | 'ready'; bank: { last4: string | null; name: string | null } | null };
+      limits: {
+        minCents: number; maxDepositCents: number;
+        dailyDepositCents: number; usedDepositCents: number;
+        dailyWithdrawalCents: number; usedWithdrawalCents: number;
+      };
+      twoStepEnabled: boolean;
+    };
+
+export interface WalletTx {
+  id: string;
+  type: 'deposit' | 'withdrawal' | 'hold' | 'release' | 'fee';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'canceled';
+  amountCents: number;
+  feeCents: number;
+  chargeCents: number;
+  method: 'card' | 'ach' | 'bank' | null;
+  description: string;
+  createdAt: number;
+  balanceAfterCents: number | null;
+  failureReason?: string;
+}
