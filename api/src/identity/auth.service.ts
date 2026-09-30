@@ -4,7 +4,7 @@ import { ClockService } from '../core/clock.service';
 import { AuditService } from '../core/audit.service';
 import { RateLimitService } from '../core/rate-limit.service';
 import { HttpError, badRequest } from '../common/http-error';
-import { User } from '../storage/db.types';
+import { PendingSignup, User } from '../storage/db.types';
 import { dummyHash, hashPassword, validatePassword, verifyPassword } from '../domain/password';
 import { isStaff } from '../domain/roles';
 import { SignInStep } from './identity.types';
@@ -38,6 +38,9 @@ export class AuthService {
     // Verify against a dummy hash for unknown users, so "no such user" costs the same as "wrong password".
     const ok = await verifyPassword(String(password ?? ''), user?.passwordHash ?? (await dummyHash()));
     if (!user || !user.passwordHash || user.disabled || !ok) {
+      // Unknown emails also check for a pending signup (one more hash); do the same work for known ones so timing can't tell them apart.
+      if (!user) await this.throwIfPendingSignup(key, String(password ?? ''));
+      else await verifyPassword(String(password ?? ''), await dummyHash());
       this.rate.recordFailure(`e:${key}`);
       this.rate.recordFailure(`i:${ip}`);
       await this.audit.record(null, 'login.failed', user?.id ?? null, { email: key });
@@ -46,6 +49,18 @@ export class AuthService {
     this.rate.clear(`e:${key}`);
     await this.audit.record(user, 'login.password_ok', user.id);
     return this.afterPassword(user, remember, { ip, ...meta });
+  }
+
+  // A signup whose emailed link hasn't been used yet has no account, so the password check above can't succeed.
+  // If the person gives the password they chose at signup, say so (the sign-in page then points them at the
+  // "check your email" screen). This is only ever revealed to someone who knows that password, so it can't be used
+  // to find out which addresses have signed up. Everyone else gets the same generic error as always.
+  private async throwIfPendingSignup(email: string, password: string): Promise<void> {
+    const rec = (await this.mongo.col('signups').findOne({ _id: email as never })) as unknown as PendingSignup | null;
+    const ok = await verifyPassword(password, rec?.passwordHash ?? (await dummyHash()));
+    if (!rec || !ok || rec.expires < this.clock.now()) return;
+    await this.audit.record(null, 'login.unverified_signup', null, { email });
+    throw new HttpError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email address. Check your inbox for the verification link.');
   }
 
   /** The person chose their password from an invitation link; staff still must set up two-factor before getting a session. */

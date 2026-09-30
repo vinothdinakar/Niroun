@@ -50,7 +50,9 @@ test('happy path: nothing exists until the email link is used, then a company an
 
   assert.equal(await w.app.accounts.findByEmail(form.email), null, 'no account yet');
   assert.ok(!(await w.app.accounts.listOrgs()).some((o) => o.name === form.company), 'no company yet');
-  assert.equal((await post('/v1/auth/login', { email: form.email, password: form.password })).status, 401, 'cannot sign in before verifying');
+  const early = await post('/v1/auth/login', { email: form.email, password: form.password });
+  assert.equal(early.status, 403, 'cannot sign in before verifying');
+  assert.equal(early.cookie, null);
 
   const mail = mailTo(form.email);
   assert.equal(mail.length, 1);
@@ -294,4 +296,25 @@ test('demo mailbox: emails are readable at /v1/dev/outbox, newest first, only wh
   assert.equal(box[0].to, b.email.toLowerCase());
   assert.equal(box[1].to, a.email.toLowerCase());
   assert.ok(box[0].link.includes('/verify#token='));
+});
+
+test('login before the emailed link is used: the right password says "verify your email", anything else stays generic', async () => {
+  fresh();
+  const form = valid();
+  await signUpAndGetToken(form);
+  const login = (email, password) => post('/v1/auth/login', { email, password });
+
+  const pending = await login(form.email, form.password);
+  assert.equal(pending.status, 403);
+  assert.equal(pending.body.error.code, 'EMAIL_NOT_VERIFIED');
+  assert.equal(pending.cookie, null, 'no session is issued');
+
+  // wrong password for the pending address is indistinguishable from an address that never signed up
+  const wrongPw = await login(form.email, 'Wrong-' + form.password);
+  const unknown = await login('nobody' + n + '@nowhere.test', form.password);
+  for (const r of [wrongPw, unknown]) {
+    assert.equal(r.status, 401);
+    assert.equal(r.body.error.code, 'INVALID_CREDENTIALS');
+  }
+  assert.deepEqual(wrongPw.body, unknown.body);
 });
