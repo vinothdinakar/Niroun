@@ -34,6 +34,8 @@ jobs:
       - run: npm ci
       - run: npm --prefix api ci
       - run: npm --prefix homepage ci
+      # The API tests need MongoDB as a replica set; its compose file starts one and waits until it is healthy.
+      - run: docker compose -f api/docker-compose.yml up -d --wait
       - run: npm test
 
   deploy:
