@@ -270,7 +270,7 @@ for (let day = 1; day <= DAYS; day++) {
 clock.offset = 0;
 
 // ---------------- summary ----------------
-const agents = await app.engine.listAgents();
+const { rows: agents } = await app.engine.listAgents();
 const stats = await app.engine.stats();
 console.log('\nFinal Bond Scores');
 console.log('  score  tier  fault%  name');

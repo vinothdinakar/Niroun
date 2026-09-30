@@ -171,7 +171,6 @@ export interface Org {
   // Public-facing profile, edited by the org's own admins. All optional; an empty value clears the field.
   about?: string;
   website?: string;
-  contactEmail?: string;
   country?: string;
   industry?: string;
 }
@@ -208,6 +207,8 @@ export interface User {
   phoneVerifiedAt: number | null;
   phoneCodeHash: string | null;
   phoneCodeExpires: number | null;
+  /** Display preferences (time zone, date and time format). Absent until first set. */
+  preferences?: { timeZone: string | null; dateFormat: 'MDY' | 'DMY' | 'YMD' | null; timeFormat: '12h' | '24h' | null };
 }
 
 export interface Session { userId: string; createdAt: number; lastSeen: number; mfa: boolean; ip: string; userAgent: string | null }

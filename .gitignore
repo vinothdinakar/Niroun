@@ -12,6 +12,9 @@ data/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
 .env*.local
 
 # OS / editor noise

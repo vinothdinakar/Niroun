@@ -7,7 +7,7 @@ import { useFlow } from '../lib/flow';
 import { ROLE_LABEL } from '../lib/format';
 import { useSession } from '../lib/session';
 import type { Permission } from '../lib/types';
-import { NotificationsMenu, ProfileMenu } from './header-menus';
+import { AppsMenu, NotificationsMenu, ProfileMenu } from './header-menus';
 
 export interface NavTab { href: string; label: string; needs?: Permission }
 
@@ -53,6 +53,7 @@ export function AppShell({ tabs, badge, children }: { tabs: NavTab[]; badge?: st
           <span><b>{u.name}</b> <span className="role">{ROLE_LABEL[u.role]}</span>{u.orgName ? ` · ${u.orgName}` : ''}</span>
           <div className="icon-group">
             <NotificationsMenu />
+            <AppsMenu />
             <ProfileMenu
               name={u.name}
               role={ROLE_LABEL[u.role]}

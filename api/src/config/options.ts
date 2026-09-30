@@ -28,6 +28,10 @@ export interface BondOptions {
   signup: 'open' | 'closed';
   /** Demo and tests: keep emails in memory and expose them at /v1/dev/outbox instead of sending. */
   devMailbox: boolean;
+  /** Resend API key. When set (and devMailbox is off) emails are really sent through Resend. */
+  resendApiKey: string | undefined;
+  /** The From address for outgoing email; its domain must be verified in Resend. */
+  mailFrom: string;
   /** The dashboard's public URL, used in emailed links. Defaults to http://localhost:<port> once listening. */
   publicUrl: string | undefined;
   /** The staff admin app's URL, used in links emailed to staff accounts (their own email verification).
@@ -56,6 +60,8 @@ export function resolveOptions(partial: Partial<BondOptions> & { keyFile?: strin
     encryptionKey: partial.encryptionKey ?? loadEncryptionKey(partial.keyFile ?? null),
     signup: partial.signup ?? 'closed',
     devMailbox: partial.devMailbox ?? false,
+    resendApiKey: partial.resendApiKey ?? (process.env.RESEND_API_KEY || undefined),
+    mailFrom: partial.mailFrom ?? process.env.BOND_MAIL_FROM ?? 'Bond <no-reply@assetslices.com>',
     publicUrl: partial.publicUrl ?? process.env.BOND_PUBLIC_URL,
     staffUrl: partial.staffUrl ?? process.env.BOND_STAFF_URL,
     sweepIntervalMs: partial.sweepIntervalMs ?? 0,

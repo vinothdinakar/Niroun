@@ -70,7 +70,7 @@ jobs:
             api)
               build
               deploy --set-env-vars "$API_ENV" \
-                --set-secrets "BOND_MONGO_URL=niroun-mongo-url:latest,BOND_ENCRYPTION_KEY=niroun-encryption-key:latest"
+                --set-secrets "BOND_MONGO_URL=niroun-mongo-url:latest,BOND_ENCRYPTION_KEY=niroun-encryption-key:latest,RESEND_API_KEY=niroun-resend-api-key:latest"
               ;;
             dashboard|admin-app)
               # The consoles bake the API's URL in at build time, so the API must exist first.

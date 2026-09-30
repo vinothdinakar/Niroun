@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, errorMessage } from '../lib/api';
+import { api, ApiError, errorMessage } from '../lib/api';
 import { useFlow } from '../lib/flow';
 import { useHealth } from '../lib/health';
 import { useRedirectIfSignedIn } from '../lib/hooks';
@@ -16,6 +17,7 @@ import { PasswordInput } from './ui';
  */
 export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }) {
   useRedirectIfSignedIn();
+  const router = useRouter();
   const flow = useFlow();
   const { notice, setNotice } = useSession();
   const health = useHealth();
@@ -38,6 +40,13 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
       setPassword('');
       await flow.continueSignIn(r);
     } catch (err) {
+      // Right password for a signup whose email link hasn't been used yet: send them to the "check your email" screen.
+      if (mode === 'customer' && err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
+        setPassword('');
+        flow.setSignupEmail(email);
+        router.push('/signup/check-email');
+        return;
+      }
       setError(errorMessage(err));
     } finally {
       setBusy(false);
@@ -57,7 +66,7 @@ export function LoginForm({ mode = 'customer' }: { mode?: 'customer' | 'staff' }
       {mode === 'staff' ? (
         <p className="muted small">Accounts are created by invitation. Ask another admin for an invite link.</p>
       ) : health?.signup === 'open' ? (
-        <p className="muted small">New to Bond? <Link href="/signup">Create an account for your company</Link></p>
+        <p className="muted small">New to Bond? <Link href="/signup">Create an account</Link></p>
       ) : (
         <p className="muted small">Accounts are created by invitation. Ask your administrator for an invite link.</p>
       )}

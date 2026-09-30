@@ -17,37 +17,82 @@ describe('AccountPage', () => {
   it('shows who you are, with a menu of sections opening on Profile', async () => {
     mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
     renderWithProviders(<AccountPage />);
-    expect(await screen.findByLabelText('Name')).toHaveValue('Ada Owner');
+    expect(await screen.findByLabelText('Legal first name')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument(); // the name isn't edited on this page
     expect(screen.getAllByText('ada@acme.test').length).toBeGreaterThan(0); // once in the hero, once in the Email row
     expect(screen.getByText('AO')).toBeInTheDocument();
-    expect(screen.getByText('Owner admin')).toHaveClass('pill');
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions']);
+    expect(screen.getByText('Organization owner')).toHaveClass('pill');
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Profile', 'Password', 'Two-step verification', 'Active sessions', 'User preferences']);
     expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('does not tell an org owner that someone invited them', async () => {
+  it('does not tell an org owner that someone invited them, or show a fixed-account note', async () => {
     mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
     renderWithProviders(<AccountPage />);
-    await screen.findByLabelText('Name');
+    await screen.findByLabelText('Legal first name');
     expect(screen.queryByText(/whoever invited you/)).not.toBeInTheDocument();
-    expect(screen.getByText(/email and role are fixed/)).toBeInTheDocument();
+    expect(screen.queryByText(/email and role are fixed/)).not.toBeInTheDocument();
   });
 
   it('tells a viewer to ask their organization\'s admins', async () => {
     mockApi({ '/v1/auth/me': { user: user({ role: 'owner_viewer' }), permissions: [] } });
     renderWithProviders(<AccountPage />);
-    await screen.findByLabelText('Name');
+    await screen.findByLabelText('Legal first name');
     expect(screen.getByText(/Ask one of them/)).toBeInTheDocument();
   });
 
   it('shows the selected section on the right and keeps the choice in the address', async () => {
     mockApi({ '/v1/auth/me': { user: user(), permissions: [] } });
     renderWithProviders(<AccountPage />);
-    await screen.findByLabelText('Name');
+    await screen.findByLabelText('Legal first name');
     fireEvent.click(screen.getByRole('tab', { name: 'Password' }));
     expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Legal first name')).not.toBeInTheDocument();
     expect(window.location.hash).toBe('#password');
+  });
+
+  it('changes the password with a form on the page itself, not in a popup', async () => {
+    window.location.hash = '#password';
+    const fetchMock = mockApi({ '/v1/auth/me': { user: user(), permissions: [] }, '/v1/auth/change-password': { ok: true } });
+    renderWithProviders(<AccountPage />);
+    const submit = await screen.findByRole('button', { name: 'Change password' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-password-123' } });
+    fireEvent.change(screen.getByLabelText('New password (12+ characters)'), { target: { value: 'a-brand-new-password' } });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(([u]) => String(u) === '/v1/auth/change-password');
+      expect(JSON.parse(String(post?.[1]?.body))).toEqual({ current: 'old-password-123', next: 'a-brand-new-password' });
+    });
+    await waitFor(() => expect(screen.getByLabelText('Current password')).toHaveValue(''));
+  });
+
+  it('has a User preferences section with time zone, date format, time format and the session timeouts', async () => {
+    window.location.hash = '#preferences';
+    mockApi({ '/v1/auth/me': { user: user({ sessionPolicy: { absoluteHours: 12, idleHours: 2 } }), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    expect(await screen.findByLabelText('My time zone')).toHaveValue('');
+    expect(screen.getByLabelText('My date format')).toHaveValue('');
+    expect(screen.getByLabelText('My time format')).toHaveValue('');
+    expect(screen.getByText('Absolute session timeout')).toBeInTheDocument();
+    expect(screen.getByText('12 hours')).toBeInTheDocument();
+    expect(screen.getByText(/2 hours without activity/)).toBeInTheDocument();
+  });
+
+  it('saves a preference the moment it changes, and keeps it selected', async () => {
+    window.location.hash = '#preferences';
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: user(), permissions: [] },
+      '/v1/auth/preferences': { user: user({ preferences: { timeZone: null, dateFormat: 'YMD', timeFormat: null } }), permissions: [] },
+    });
+    renderWithProviders(<AccountPage />);
+    fireEvent.change(await screen.findByLabelText('My date format'), { target: { value: 'YMD' } });
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([u, init]) => String(u) === '/v1/auth/preferences' && init?.method === 'PUT');
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ dateFormat: 'YMD' });
+    });
+    await waitFor(() => expect(screen.getByLabelText('My date format')).toHaveValue('YMD'));
   });
 
   it('opens straight to a section named in the address, and reports two-step status', async () => {
@@ -67,26 +112,24 @@ describe('AccountPage', () => {
     expect(screen.queryByText('Recovery codes')).not.toBeInTheDocument();
   });
 
-  it('saves a new display name (and legal name) through PUT /v1/auth/me and shows it', async () => {
+  it('saves the legal name through PUT /v1/auth/me, sending the current name unchanged', async () => {
     const fetchMock = mockApi({
       '/v1/auth/me': (_url: string, init?: RequestInit) =>
         init?.method === 'PUT'
-          ? { user: user({ name: 'Ada L.', legalFirstName: 'Ada', legalLastName: 'Lovelace' }), permissions: [] }
+          ? { user: user({ legalFirstName: 'Ada', legalLastName: 'Lovelace' }), permissions: [] }
           : { user: user(), permissions: [] },
     });
     renderWithProviders(<AccountPage />);
-    const input = await screen.findByLabelText('Name');
+    const first = await screen.findByLabelText('Legal first name');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    fireEvent.change(input, { target: { value: 'Ada L.' } });
-    fireEvent.change(screen.getByLabelText('Legal first name'), { target: { value: 'Ada' } });
+    fireEvent.change(first, { target: { value: 'Ada' } });
     fireEvent.change(screen.getByLabelText('Legal last name'), { target: { value: 'Lovelace' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
       const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
-      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ name: 'Ada L.', legalFirstName: 'Ada', legalLastName: 'Lovelace' });
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ name: 'Ada Owner', legalFirstName: 'Ada', legalLastName: 'Lovelace' });
     });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
-    expect(screen.getByLabelText('Name')).toHaveValue('Ada L.');
     expect(screen.getByLabelText('Legal last name')).toHaveValue('Lovelace');
   });
 
@@ -108,6 +151,20 @@ describe('AccountPage', () => {
     renderWithProviders(<AccountPage />);
     expect(await screen.findByText('Verified')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Verify email' })).not.toBeInTheDocument();
+  });
+
+  it('shows a status for the phone number: not added, not verified, verified', async () => {
+    mockApi({ '/v1/auth/me': { user: user({ emailVerified: true }), permissions: [] } });
+    const { unmount } = renderWithProviders(<AccountPage />);
+    expect(await screen.findByText('Not added')).toHaveClass('pill', 'gray');
+    unmount();
+    mockApi({ '/v1/auth/me': { user: user({ emailVerified: true, phone: '+14155550123' }), permissions: [] } });
+    const second = renderWithProviders(<AccountPage />);
+    expect(await screen.findByText('Not verified')).toHaveClass('pill', 'amber');
+    second.unmount();
+    mockApi({ '/v1/auth/me': { user: user({ emailVerified: true, phone: '+14155550123', phoneVerified: true }), permissions: [] } });
+    renderWithProviders(<AccountPage />);
+    expect((await screen.findAllByText('Verified')).length).toBe(2); // email and phone
   });
 
   it('adds a phone number, sends a code, and confirms it', async () => {

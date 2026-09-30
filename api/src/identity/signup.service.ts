@@ -14,6 +14,13 @@ import { EMAIL_RE } from './identity.types';
 import { OrgsService } from './orgs.service';
 import { UsersService } from './users.service';
 
+// What an account starts with, taken from the part of the email before the @ (Account and Organization can change it):
+// the name is the first word of it, capitalised, and the organization is "<First name>'s Org - <creation date>".
+const firstName = (email: string): string => {
+  const word = email.split('@')[0].split(/[._+-]+/).find(Boolean) ?? '';
+  return (word.charAt(0).toUpperCase() + word.slice(1)).slice(0, 40) || 'My';
+};
+
 const SIGNUP_TTL_MS = 24 * 3_600_000;
 // Placeholder wording (see the sign-up form). Have counsel replace it, and bump this, before real customers sign up.
 export const TERMS_VERSION = 'preview-1';
@@ -63,35 +70,26 @@ export class SignupService {
     if (EMAIL_RE.test(email)) this.rate.hit(`s:em:${email}`, 3);
 
     if (!EMAIL_RE.test(email) || email.length > 254) throw badRequest('INVALID_EMAIL', 'A valid work email address is required');
-    const name = String(input.name ?? '').trim();
-    if (!name || name.length > 80) throw badRequest('INVALID_NAME', 'Your name is required (80 characters at most)');
-    let company = String(input.company ?? '').trim();
-    if (company.length < 2 || company.length > 80) throw badRequest('INVALID_COMPANY', 'Company name must be 2-80 characters');
     const pwErr = validatePassword(input.password, email);
     if (pwErr) throw badRequest('WEAK_PASSWORD', pwErr);
     if (input.acceptTerms !== true) throw badRequest('TERMS_REQUIRED', 'You must accept the preview terms to continue');
-    // Individual signup: every account still gets an org (agent ownership, scoping, mandates all key off orgId),
-    // just without a company-name field. This early check is a fast, nicer-looking first pass — the one that
-    // actually matters is in verify(), since a real org isn't created (and so can't collide) until then.
-    const accountType = input.accountType === 'individual' ? 'individual' : 'business';
-    if (await this.orgs.nameTaken(company)) {
-      if (accountType !== 'individual') {
-        throw new HttpError(409, 'ORG_EXISTS', `An organization named "${company}" is already registered. Ask its admin to invite you, or use a different name.`);
-      }
-      company = await this.disambiguate(company);
-    }
+    // Signup asks only for an email and password. Every account still gets an org (agent ownership, scoping and
+    // mandates all key off orgId), so the name and the org's name start as placeholders taken from the email; the
+    // owner sets the real ones in Account and Organization. A collision is disambiguated rather than refused,
+    // since the placeholder is ours, not something the person chose. The check that matters is in verify(),
+    // because a real org isn't created (and so can't collide) until then.
+    const name = firstName(email);
+    const company = `${name}'s Org`; // the day the org is created is added in verify()
+    const accountType = 'business';
 
-    // Same work and the same reply whether or not the email is already known, so this endpoint can't be used to find out who has an account.
-    const passwordHash = await hashPassword(input.password as string);
+    // An address that already has an account is told so, plainly: a person who forgot they signed up needs to know.
+    // This does let anyone learn that an address is registered, so it leans on the per-address and per-source limits
+    // above. A signup that is still waiting for its link is not an account yet and gets the usual reply.
     if (await this.users.findByEmail(email)) {
       await this.audit.record(null, 'signup.duplicate', email);
-      await this.mailer.send({
-        to: email, subject: 'You already have a Bond account',
-        text: 'Someone (hopefully you) tried to create a Bond account with this address, but one already exists. Sign in instead. If you forgot your password, ask your organization admin to reset it.',
-        link: this.publicUrl(),
-      });
-      return;
+      throw new HttpError(409, 'EMAIL_EXISTS', 'An account with this email already exists. Sign in instead, or use a different email.');
     }
+    const passwordHash = await hashPassword(input.password as string);
     const token = randomBytes(24).toString('base64url');
     const now = this.clock.now();
     const rec: PendingSignup = {
@@ -134,14 +132,9 @@ export class SignupService {
     const rec = (await this.col.findOneAndDelete({ verifyHash: h }, this.mongo.tx)) as unknown as PendingSignup | null;
     if (!rec || rec.expires < this.clock.now()) throw new HttpError(400, 'INVALID_VERIFICATION', 'This verification link is invalid or has expired. Please sign up again.');
     if (await this.users.findByEmail(rec.email)) throw new HttpError(409, 'USER_EXISTS', 'An account with this email already exists. Try signing in.');
-    if (await this.orgs.nameTaken(rec.company)) {
-      // Two individuals racing for the same personal name: disambiguate here too, since this is the point a
-      // real org is actually created — the other one may well have taken the plain name moments ago.
-      if (rec.accountType !== 'individual') {
-        throw new HttpError(409, 'ORG_EXISTS', `An organization named "${rec.company}" was registered in the meantime. Ask its admin to invite you.`);
-      }
-      rec.company = await this.disambiguate(rec.company);
-    }
+    // "Pat's Org - 2026-09-30": the placeholder name plus the day the organization is created. A clash gets a suffix.
+    const dated = `${rec.company} - ${new Date(this.clock.now()).toISOString().slice(0, 10)}`;
+    rec.company = (await this.orgs.nameTaken(dated)) ? await this.disambiguate(dated) : dated;
     return this.mongo.transaction(async () => {
       const org = await this.orgs.create(rec.company, null, rec.accountType);
       org.createdVia = 'signup';

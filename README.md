@@ -50,6 +50,19 @@ npm test
 
 The `dev`/`build`/`start`/`test` scripts also work from inside each app's own folder (`cd admin-app && npm test`). Requires Node 20+.
 
+## Configuration and secrets
+
+| Where | Secrets (`RESEND_API_KEY`, `BOND_MONGO_URL`, `BOND_ENCRYPTION_KEY`) | Other settings (`BOND_PUBLIC_URL`, `BOND_MAIL_FROM`, ...) |
+|---|---|---|
+| **Local** | `api/.env.local` (gitignored) | same file |
+| **Deployed (Cloud Run)** | Google Secret Manager, mounted by `.github/workflows/_deploy.yml` (`--set-secrets`) | GitHub environment variables, passed with `--set-env-vars` |
+
+- **Local:** copy `api/.env.example` to `api/.env.local`, fill it in, and run `npm --prefix api run start:local`. The dashboard and admin app only need `BOND_API_URL` (see their `.env.example`; copy to `.env.local`). `npm run api:demo` ignores this file and uses its own throwaway settings (in-memory mailbox, so no real email).
+- **Never commit real values.** `.env`, `.env.*` and `*.local` are gitignored; only `.env.example` files are tracked, and they hold dummy values. `.env.example` is the list of every variable; keep it in step with `api/README.md` when you add one.
+- **Deployed environments don't use env files.** Each GitHub Environment (`dev` today, `prod` later) has its own variables and its own Secret Manager secrets; the variable names stay the same and only the values differ. To add a secret: create it in Secret Manager, grant the runtime service account access, and add it to `--set-secrets` (steps in `deploy/SETUP.md`).
+- **Rotate a secret** by adding a new Secret Manager version and redeploying; no code change.
+- **Turn off local-only switches in production:** `BOND_DEV_MAILBOX` (exposes verification links and disables real email).
+
 Ports: API 4100, dashboard 3300, admin app 3400, homepage 5173, local MongoDB 27018. (3000/3100/3200 are left free because they're common defaults for other Next.js projects.)
 
 ## Status

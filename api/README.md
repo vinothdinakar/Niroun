@@ -30,6 +30,8 @@ After `npm run demo`, the demo accounts (staff and two customer companies) and t
 
 ### Configuration (environment variables)
 
+For local use, copy `.env.example` to `.env.local` and run `npm run start:local`. See "Configuration and secrets" in the root README for how each environment is configured.
+
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `4100` | Port the API listens on |
@@ -43,6 +45,8 @@ After `npm run demo`, the demo accounts (staff and two customer companies) and t
 | `BOND_TRUST_PROXY` | off | Set to `1` **only** behind a proxy you control that sets `X-Forwarded-For`, so per-visitor rate limits see the real address |
 | `BOND_SIGNUP` | `closed` | `open` lets companies register themselves |
 | `BOND_DEV_MAILBOX` | off | `1` keeps emails and SMS texts in memory and exposes them at `/v1/dev/outbox` and `/v1/dev/sms-outbox`. Never in production |
+| `RESEND_API_KEY` | none | Sends email through [Resend](https://resend.com). Ignored when `BOND_DEV_MAILBOX=1`. Without it emails are printed to the console |
+| `BOND_MAIL_FROM` | `Bond <no-reply@assetslices.com>` | The From address; its domain must be verified in Resend |
 | `BOND_BOOTSTRAP_EMAIL` | none | Creates the first admin's one-time setup link when no admin exists |
 | `BOND_COOKIE_SECURE` | off | `1` when served over HTTPS |
 | `BOND_GCS_BUCKET` | none (local folder `data/uploads`) | Google Cloud Storage bucket for KYB/KYC evidence files. Credentials come from Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, or the runtime's service account). Without it the server stores files on local disk and warns: fine for dev, not for production |
@@ -69,16 +73,18 @@ A company that owns agents can register itself, when signup is open:
 BOND_SIGNUP=open BOND_PUBLIC_URL=https://console.example.com npm start   # closed unless you say otherwise
 ```
 
-Flow: **create account** (name, work email, company, password, accept preview terms) → **verification email** → click the link → the company and its first `owner_admin` are created → **sign in** → getting-started checklist (connect an agent with an enrollment code, get the company verified, invite the team).
+Flow: **create account** (just an email and a password, plus accepting the preview terms) → **verification email** → click the link → an organization and its first user, the **organization owner** (role `owner_admin`), are created → **sign in** → getting-started checklist (set your name and organization details, connect an agent with an enrollment code, get verified, invite the team).
+
+Every account has an organization, individual or business alike; there is one kind of user. The account's name and the organization's name start as placeholders taken from the email (`pat.smith@widgets.com` → "Pat" / "Pat's Org - 2026-09-30", the day the organization was created; disambiguated if taken; the creation date is also shown on the Organization page), and the type starts as `business`. The owner sets the real values afterwards: their name in Account, and the organization's name in Organization → Profile and its type in Organization → Verification (both `PUT /v1/console/orgs/:id/profile`, with `name` / `accountType`). The type decides which evidence verification asks for, so an owner can change it only until verification starts; after that it takes a Bond admin. Any `name`, `company`, `accountType` or role sent to `POST /v1/signup` is ignored.
 
 Design decisions:
-- **Nothing exists until the email is verified.** The pending signup holds only a password *hash* and a hashed link token, for 24 hours. A stranger can't claim a company name, or make an account for an address they don't control. Links are single-use; resending kills the previous link.
-- **No account enumeration.** Signing up with an email that already has an account returns the identical response; that person gets a "you already have an account" email instead.
+- **Nothing exists until the email is verified.** The pending signup holds only a password *hash* and a hashed link token, for 24 hours. A stranger can't make an account for an address they don't control. Links are single-use; resending kills the previous link.
+- **Existing accounts are told so.** Signing up with an email that already has an account returns `409 EMAIL_EXISTS` ("Sign in instead"), and nothing is created or sent. That reveals which addresses are registered, so it relies on the signup rate limits (below). Sign-in itself still gives one generic error for a wrong password or unknown email. A signup whose link has not been used yet is not an account: signing up again just replaces it.
 - **People can't choose their role or company.** Signup only ever creates an `owner_admin` of a *new* company. Joining an existing company is by invitation from its admin. Company names are compared loosely ("ACME Corp." = "acme corp") to stop look-alike squatting.
 - **New companies start unverified.** Bond staff verify businesses from the Organizations tab (Unverified / Owner verified / Fully verified). Verifying a company upgrades all its agents, and agents enrolled later inherit it, which lowers their bond premiums. Verification is never self-service.
 - **Abuse limits.** 5 signups/hour per source address and 3/hour per email, a honeypot field for bots, strong-password rules, and no sign-in before verification. **Add a CAPTCHA/bot check before opening signup to the public internet.**
 - **Email links come from configuration** (`BOND_PUBLIC_URL`), never from the request's `Host` header, which would let an attacker send victims a link to their own site. Tokens travel in the URL fragment, which browsers don't send to servers or log.
-- **Email is one interface** (`src/core/mailer.service.ts`). It prints to the console by default. In `npm run demo` (and tests) messages are kept in memory and shown in a demo mailbox on the "check your email" screen. To go live, add a provider (SES, Postmark, SMTP) behind `mailer.send()`. Nothing else changes. `BOND_DEV_MAILBOX=1` turns the mailbox on for a non-demo server; never do that in production, since it exposes verification links.
+- **Email is one interface** (`src/core/mailer.service.ts`). It prints to the console by default. In `npm run demo` (and tests) messages are kept in memory and shown in a demo mailbox on the "check your email" screen. Set `RESEND_API_KEY` to send through Resend (delivery failures are logged, never thrown, so signup replies stay identical). `BOND_DEV_MAILBOX=1` turns the mailbox on for a non-demo server; never do that in production, since it exposes verification links.
 - **Terms are a placeholder** (`TERMS_VERSION = 'preview-1'`, stored with each account). Have counsel replace them before real customers sign up.
 
 ## Who can sign in
@@ -228,7 +234,7 @@ Nothing is public except `GET /v1/health`, the sign-in endpoints, and (only when
 
 **Staff-only console actions** (admin-app; the dashboard has no UI for these, and a customer session would get 403 regardless): `GET /v1/stats` (pool health, `stats`), `GET /v1/console/overview` (staff's version reads `/v1/stats` instead), `GET/POST /v1/console/orgs`, `POST /v1/console/orgs/:id/verify` (`orgs`), `GET /v1/console/audit` (`audit`), `POST /v1/console/agents/:id/verify` (`verify`), `POST /v1/console/disputes/:id/resolve` (`resolve`, admin + reviewer), `POST /v1/console/sweep` (`sweep`).
 
-**Organization profile:** `PUT /v1/console/orgs/:id/profile` (`org_manage`: org admins on their own org, staff on any) sets `about` (500 chars), `website` (http/https URL), `contactEmail`, `country` and `industry`. It is partial: only the fields sent change, and an empty string clears one. The profile comes back on `GET /v1/console/orgs`; each edit is audited as `org.profile_update`.
+**Organization profile:** `PUT /v1/console/orgs/:id/profile` (`org_manage`: org admins on their own org, staff on any) sets `about` (500 chars), `website` (http/https URL), `country` and `industry`. It is partial: only the fields sent change, and an empty string clears one. The profile comes back on `GET /v1/console/orgs`; each edit is audited as `org.profile_update`.
 
 Every signed agent request carries `X-Bond-Agent`, `-Timestamp`, `-Nonce`, `-Signature` (Ed25519 over method, path, timestamp, nonce, body hash). Requests older than 5 minutes or with a reused nonce are rejected. Every browser request from either console carries `X-Bond-App: customer` or `staff` (set by that console's own server, not by the browser — see above), which the auth guard uses to pick the matching session cookie.
 

@@ -8,7 +8,7 @@ import { AccountType, Org, User, Verification } from '../storage/db.types';
 import { Actor } from './identity.types';
 import { can, isStaff } from '../domain/roles';
 
-type ProfileField = 'about' | 'website' | 'contactEmail' | 'country' | 'industry';
+type ProfileField = 'about' | 'website' | 'country' | 'industry';
 const isHttpUrl = (s: string): boolean => {
   try {
     return ['http:', 'https:'].includes(new URL(s).protocol);
@@ -19,7 +19,6 @@ const isHttpUrl = (s: string): boolean => {
 const PROFILE_FIELDS: Record<ProfileField, { max: number; check?: (s: string) => boolean; error?: string }> = {
   about: { max: 500 },
   website: { max: 200, check: isHttpUrl, error: 'website must be a full http(s) address, e.g. https://example.com' },
-  contactEmail: { max: 120, check: (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), error: 'contactEmail must be an email address' },
   country: { max: 60 },
   industry: { max: 80 },
 };
@@ -92,14 +91,45 @@ export class OrgsService {
       if (clean && spec.check && !spec.check(clean)) throw badRequest('INVALID_PROFILE', spec.error!);
       changes[key] = clean;
     }
+    // The organization's name and account type are set later, here, because signup only collects an email and password.
+    let name: string | undefined;
+    if ('name' in input) {
+      if (typeof input.name !== 'string' || input.name.trim().length < 2 || input.name.trim().length > 80) throw badRequest('INVALID_NAME', 'Organization name must be 2-80 characters');
+      name = input.name.trim();
+    }
+    let accountType: AccountType | undefined;
+    if ('accountType' in input) {
+      if (input.accountType !== 'individual' && input.accountType !== 'business') throw badRequest('INVALID_ACCOUNT_TYPE', 'accountType must be "individual" or "business"');
+      accountType = input.accountType;
+    }
     return this.mongo.transaction(async () => {
       const org = await this.orThrow(orgId);
       for (const [key, value] of Object.entries(changes) as [ProfileField, string][]) {
         if (value) org[key] = value;
         else delete org[key];
       }
-      await this.mongo.orgs.save(org);
-      await this.audit.record(actor, 'org.profile_update', org.id, { fields: Object.keys(changes) });
+      const audit: Record<string, unknown> = { fields: Object.keys(changes) };
+      if (name !== undefined && name !== org.name) {
+        if (orgNameKey(name) !== orgNameKey(org.name) && (await this.nameTaken(name))) throw new HttpError(409, 'ORG_EXISTS', 'An organization with that name already exists');
+        audit.name = { from: org.name, to: name };
+        org.name = name;
+      }
+      if (accountType !== undefined && accountType !== org.accountType) {
+        // The type decides which evidence verification asks for, so an owner can change it only until verification
+        // starts. After that (or any time, for staff) it needs a Bond admin, who can also correct it.
+        if (!isStaff(actor) && ((org.verification || 0) > 0 || (await this.mongo.verificationRequests.count({ orgId: org.id, status: 'pending' })) > 0)) {
+          throw new HttpError(409, 'ACCOUNT_TYPE_LOCKED', 'The account type cannot be changed once verification has started. Contact Bond support.');
+        }
+        audit.accountType = { from: org.accountType, to: accountType };
+        org.accountType = accountType;
+      }
+      try {
+        await this.mongo.orgs.save(org);
+      } catch (e) {
+        if (isDuplicateKey(e)) throw new HttpError(409, 'ORG_EXISTS', 'An organization with that name already exists');
+        throw e;
+      }
+      await this.audit.record(actor, 'org.profile_update', org.id, audit);
       return org;
     });
   }

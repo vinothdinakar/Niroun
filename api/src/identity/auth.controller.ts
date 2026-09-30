@@ -91,6 +91,12 @@ export class AuthController {
     return { user: await this.users.updateProfile(user, body), permissions: permissionsOf(user.role) };
   }
 
+  @Put('preferences')
+  @Access('user')
+  async updatePreferences(@CurrentUser() user: User, @Body() body: Json): Promise<Json> {
+    return { user: await this.users.updatePreferences(user, body), permissions: permissionsOf(user.role) };
+  }
+
   @Post('change-password')
   @Access('user')
   @HttpCode(200)

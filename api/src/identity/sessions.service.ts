@@ -6,9 +6,9 @@ import { User } from '../storage/db.types';
 import { sha256 } from '../domain/canonical';
 import { isStaff } from '../domain/roles';
 
+import { SESSION_IDLE_MS, SESSION_MAX_MS } from './identity.types';
+export { SESSION_IDLE_MS, SESSION_MAX_MS };
 const HOUR = 3_600_000;
-export const SESSION_IDLE_MS = 2 * HOUR;
-export const SESSION_MAX_MS = 12 * HOUR;
 
 /** Where a session came from, for the "active sessions" list — best-effort, never trusted for security decisions. */
 export interface SessionMeta { ip?: string; userAgent?: string | null }

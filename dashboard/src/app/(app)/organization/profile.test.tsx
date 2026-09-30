@@ -31,6 +31,56 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled());
   });
 
+  it('shows the organization ID, name and creation date as cards, with no verification status or account type', async () => {
+    mockApi({ '/v1/auth/me': { user: baseUser, permissions: ['org_manage'] }, '/v1/console/orgs': { orgs: [{ ...org, createdAt: Date.UTC(2026, 8, 29, 21, 30, 51) }] } });
+    renderWithProviders(<ProfilePage />);
+    expect(await screen.findByRole('heading', { name: 'Organization ID' })).toBeInTheDocument();
+    expect(screen.getByText('org_1')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Organization name' })).toBeInTheDocument();
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Created on' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Account type')).not.toBeInTheDocument();
+    expect(screen.queryByText(/account · created|Not verified|Owner verified/i)).not.toBeInTheDocument();
+  });
+
+  it('renames the organization from its card: pencil, edit, save through the profile endpoint', async () => {
+    const fetchMock = mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['org_manage'] },
+      '/v1/console/orgs': { orgs: [org] },
+      '/v1/console/orgs/org_1/profile': { ...org, name: 'Pat Freelance' },
+    });
+    renderWithProviders(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit organization name' }));
+    const input = screen.getByLabelText('Organization name');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(); // nothing changed yet
+    fireEvent.change(input, { target: { value: 'Pat Freelance' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true));
+    expect(JSON.parse(String(fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')![1]?.body))).toEqual({ name: 'Pat Freelance' });
+    expect(await screen.findByText('Pat Freelance')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Organization name')).not.toBeInTheDocument(); // back to the read-only card
+  });
+
+  it('cannot edit the name without permission, and a rename error shows on the card', async () => {
+    mockApi({ '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer' }, permissions: [] }, '/v1/console/orgs': { orgs: [org] } });
+    const { unmount } = renderWithProviders(<ProfilePage />);
+    await screen.findByRole('heading', { name: 'Organization name' });
+    expect(screen.queryByRole('button', { name: 'Edit organization name' })).not.toBeInTheDocument();
+    unmount();
+
+    mockApi({
+      '/v1/auth/me': { user: baseUser, permissions: ['org_manage'] },
+      '/v1/console/orgs': { orgs: [org] },
+      '/v1/console/orgs/org_1/profile': () => { throw Object.assign(new Error('An organization with that name already exists'), { status: 409 }); },
+    });
+    renderWithProviders(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit organization name' }));
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Taken Co' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
   it('shows the profile read-only to someone who cannot manage the org', async () => {
     mockApi({
       '/v1/auth/me': { user: { ...baseUser, role: 'owner_viewer' }, permissions: [] },

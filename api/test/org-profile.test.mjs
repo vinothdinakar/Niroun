@@ -12,13 +12,13 @@ async function ownerFor(role = 'owner_admin') {
   return { org, session: await user.signIn() };
 }
 
-const profile = { about: 'We build supply-chain agents.', website: 'https://acme.test', contactEmail: 'hello@acme.test', country: 'Canada', industry: 'Logistics' };
+const profile = { about: 'We build supply-chain agents.', website: 'https://acme.test', country: 'Canada', industry: 'Logistics' };
 
 test('an org admin edits their profile, and it shows on the org', async () => {
   const { org, session } = await ownerFor();
   const put = await session.req('PUT', `/v1/console/orgs/${org.id}/profile`, profile);
   assert.equal(put.status, 200);
-  assert.deepEqual({ about: put.body.about, website: put.body.website, contactEmail: put.body.contactEmail, country: put.body.country, industry: put.body.industry }, profile);
+  assert.deepEqual({ about: put.body.about, website: put.body.website, country: put.body.country, industry: put.body.industry }, profile);
   const orgs = await session.req('GET', '/v1/console/orgs');
   assert.equal(orgs.body.orgs[0].about, profile.about);
   assert.equal(orgs.body.orgs[0].name, org.name, 'the name is not part of the profile');
@@ -39,10 +39,20 @@ test('values are validated', async () => {
   const put = (body) => session.req('PUT', `/v1/console/orgs/${org.id}/profile`, body);
   assert.equal((await put({ website: 'javascript:alert(1)' })).body.error.code, 'INVALID_PROFILE');
   assert.equal((await put({ website: 'acme.test' })).status, 400, 'needs the scheme');
-  assert.equal((await put({ contactEmail: 'not an email' })).status, 400);
   assert.equal((await put({ about: 'x'.repeat(501) })).status, 400);
   assert.equal((await put({ country: 42 })).status, 400);
   assert.equal((await put({ website: 'http://ok.test' })).status, 200);
+});
+
+test('contactEmail is no longer part of the profile: it is ignored, and one stored earlier is not served', async () => {
+  const { org, session } = await ownerFor();
+  const put = await session.req('PUT', `/v1/console/orgs/${org.id}/profile`, { contactEmail: 'hello@acme.test', country: 'Canada' });
+  assert.equal(put.status, 200);
+  assert.equal(put.body.country, 'Canada');
+  assert.equal(put.body.contactEmail, undefined, 'not stored');
+  await w.app.mongo.db.collection('orgs').updateOne({ _id: org.id }, { $set: { contactEmail: 'old@acme.test' } }); // as an older version left it
+  const orgs = await session.req('GET', '/v1/console/orgs');
+  assert.equal(orgs.body.orgs[0].contactEmail, undefined, 'an old stored value is not returned');
 });
 
 test('a viewer cannot edit; one org cannot edit another; signed-out cannot', async () => {

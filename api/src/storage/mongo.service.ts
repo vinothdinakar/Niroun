@@ -31,7 +31,7 @@ export class MongoService implements OnModuleInit, OnApplicationShutdown {
   // "Acme Corp", "ACME  corp." and "acme-corp" are the same company as far as name squatting goes: a unique index on nameKey enforces it
   readonly orgs = new EntityStore<Org>(this, 'orgs', {
     toDoc: (org) => ({ nameKey: orgNameKey(org.name) }),
-    fromDoc: (doc) => { delete doc.nameKey; },
+    fromDoc: (doc) => { delete doc.nameKey; delete doc.contactEmail; }, // contactEmail was dropped from the profile; old values are no longer served
   });
   readonly verificationRequests = new EntityStore<VerificationRequest>(this, 'verification_requests');
   readonly verificationDocuments = new EntityStore<VerificationDocument>(this, 'verification_documents');

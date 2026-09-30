@@ -48,20 +48,22 @@ export function Kpis({ head }: { head: PoolStats | OwnerOverview }) {
 export function Onboarding({ overview, org }: { overview: OwnerOverview; org: Org | undefined }) {
   const { has, isStaff } = useSession();
   if (isStaff || !org || (overview.agents > 0 && org.verification)) return null;
+  const who = org.accountType === 'individual' ? 'account' : 'organization';
   return (
     <div className="onboard">
       <h3>Welcome, {org.name}</h3>
       <div className="muted">A few steps to get your agents trading safely.</div>
       <ol>
-        <li className="done">Company account created and email verified</li>
+        <li className="done">Account created and email verified</li>
+        <li>Set your name and organization details{has('org_manage') && <> <Link className="btn ghost sm" href="/organization">Open Organization</Link></>}</li>
         <li className={overview.agents > 0 ? 'done' : ''}>
           Connect your first agent
           {overview.agents === 0 && has('enroll') && <> <Link className="btn primary sm" href="/connect">Generate an enrollment code</Link></>}
         </li>
         <li className={org.verification ? 'done' : ''}>
           {org.verification
-            ? 'Your organization is verified'
-            : <>Get your organization verified — it lowers the premium your agents&apos; counterparties pay.{has('request_verification') && <> <Link className="btn primary sm" href="/organization#verification">Apply for verification</Link></>}</>}
+            ? `Your ${who} is verified`
+            : <>Get your {who} verified — it lowers the premium your agents&apos; counterparties pay.{has('request_verification') && <> <Link className="btn primary sm" href="/organization#verification">Apply for verification</Link></>}</>}
         </li>
         <li>Invite your team{has('team_manage') && <> <Link className="btn ghost sm" href="/organization#team">Open Team</Link></>}</li>
       </ol>

@@ -42,7 +42,11 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
 printf '%s' 'mongodb+srv://USER:PASS@cluster.mongodb.net/' | gcloud secrets create niroun-mongo-url --data-file=-
 # BOND_ENCRYPTION_KEY: check api/src for the required format; this assumes 32 random bytes, base64.
 openssl rand -base64 32 | tr -d '\n' | gcloud secrets create niroun-encryption-key --data-file=-
-for s in niroun-mongo-url niroun-encryption-key; do
+# Resend (email). Paste your key when prompted; it never goes in the repo. Sender: BOND_MAIL_FROM (default Bond <no-reply@assetslices.com>);
+# the domain must be verified in Resend (SPF + DKIM DNS records).
+read -rs -p "Resend API key: " RESEND_KEY; echo
+printf '%s' "$RESEND_KEY" | gcloud secrets create niroun-resend-api-key --data-file=-
+for s in niroun-mongo-url niroun-encryption-key niroun-resend-api-key; do
   gcloud secrets add-iam-policy-binding $s --member=serviceAccount:$RUNTIME_SA \
     --role=roles/secretmanager.secretAccessor
 done
