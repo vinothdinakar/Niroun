@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CodeBlock } from '../components/CodeBlock';
 import { operations, type Operation } from '../docs/schema';
+import { API_BASE_URL } from '../docs/server';
 import { CATEGORY_LOADS, spec } from '../docs/spec';
 
 const OPS = operations();
@@ -239,7 +240,7 @@ export function Docs() {
           <section id="overview">
             <h2>Overview</h2>
             <ul className="docs-list">
-              <li><b>Base URL.</b> <code>{spec.servers[0].url}</code> for local development. Private-preview hosts are shared when you get access.</li>
+              <li><b>Base URL.</b> <code>{spec.servers[0].url}</code>{API_BASE_URL ? '. Every path below is relative to it.' : ' for local development. Private-preview hosts are shared when you get access.'}</li>
               <li><b>Format.</b> JSON in, JSON out. Amounts are integer cents in USD; timestamps are Unix milliseconds. Ids are prefixed: <code>agt_</code>, <code>qt_</code>, <code>tx_</code>, <code>dp_</code>.</li>
               <li><b>Simulated funds.</b> Bond is in private preview. No real money moves.</li>
               <li><b>Errors.</b> Non-2xx responses carry a stable code you can branch on.</li>

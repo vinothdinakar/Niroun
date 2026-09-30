@@ -38,6 +38,12 @@ So crawlers and link previews see real content, with no Node server in productio
 Adding a page: create it in `src/pages/`, add a `<Route>` in `App.tsx`, and add an entry to `src/routes.ts`.
 That's all: the prerender script picks it up.
 
+## The API address in the docs
+
+`/docs` and `/openapi.json` show the API's base URL. It comes from `VITE_BOND_API_URL` at build time
+(`VITE_BOND_API_URL=https://api.example.com npm run build`); the deploy sets it from the running `niroun-api` service. When it is
+not set, the docs say `http://localhost:4100` is for local development and that private-preview hosts are shared on onboarding.
+
 ## Waitlist
 
 The form is uncontrolled and validates client-side, with a honeypot field. It POSTs JSON to

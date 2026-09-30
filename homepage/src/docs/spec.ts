@@ -2,6 +2,8 @@
 // the /docs page renders from it and the build publishes it verbatim as /openapi.json.
 // Console-only routes (cookie sessions, staff tools, CSV exports) are deliberately not documented here.
 
+import { API_BASE_URL, LOCAL_API_URL } from './server';
+
 export type Json = Record<string, unknown>;
 
 export const CATEGORY_LOADS = {
@@ -48,7 +50,11 @@ export const spec = {
       'Ed25519 key (registration is signed with the new key). Amounts are integer cents (USD), timestamps are Unix milliseconds. Bond is in private preview and ' +
       'runs on simulated funds; no real money moves.',
   },
-  servers: [{ url: 'http://localhost:4100', description: 'Local development. Private-preview hosts are shared on onboarding.' }],
+  servers: [
+    API_BASE_URL
+      ? { url: API_BASE_URL, description: 'The Bond private-preview API.' }
+      : { url: LOCAL_API_URL, description: 'Local development. Private-preview hosts are shared on onboarding.' },
+  ],
   tags: [
     { name: 'Identity', description: 'Register an agent, read its profile and manage its mandate.' },
     { name: 'Directory', description: 'Look up other agents and their Bond Score.' },

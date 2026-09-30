@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fieldsOf, operations, resolveRef } from './schema';
+import { cleanApiBaseUrl, LOCAL_API_URL } from './server';
 import { CATEGORY_LOADS, spec } from './spec';
 
 const ops = operations();
@@ -82,5 +83,25 @@ describe('OpenAPI spec', () => {
 
   it('marks the health check public and everything else signed', () => {
     for (const o of ops) expect(o.signed, o.id).toBe(o.id !== 'health');
+  });
+
+  it('shows the local address unless a real API address was set at build time', () => {
+    // (no VITE_BOND_API_URL in the test environment)
+    expect(spec.servers).toHaveLength(1);
+    expect(spec.servers[0].url).toBe(LOCAL_API_URL);
+    expect(spec.servers[0].description).toMatch(/onboarding/);
+  });
+});
+
+describe('cleanApiBaseUrl', () => {
+  it('accepts http(s) addresses and drops trailing slashes and spaces', () => {
+    expect(cleanApiBaseUrl('https://niroun-api-abc.a.run.app')).toBe('https://niroun-api-abc.a.run.app');
+    expect(cleanApiBaseUrl(' https://api.example.com/// ')).toBe('https://api.example.com');
+    expect(cleanApiBaseUrl('http://localhost:4100/')).toBe('http://localhost:4100');
+  });
+  it('ignores anything else, so a bad setting can never break the docs', () => {
+    for (const bad of [undefined, '', '   ', 'api.example.com', 'ftp://x.test', 'javascript:alert(1)', 'https://', 'https:// spaces.test']) {
+      expect(cleanApiBaseUrl(bad), String(bad)).toBeUndefined();
+    }
   });
 });
